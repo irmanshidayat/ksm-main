@@ -1,0 +1,318 @@
+# =============================================================================
+# KSM MAIN - DOCKER COMPOSE CONFIGURATION (PRODUCTION ONLY)
+# =============================================================================
+#
+# CATATAN PENTING:
+# ================
+# File ini HANYA untuk PRODUCTION deployment menggunakan Docker.
+# 
+# Untuk DEVELOPMENT:
+# - Gunakan XAMPP lokal untuk MySQL (port 3307)
+# - Install Redis lokal jika diperlukan (port 6379)
+# - Jalankan Backend, Frontend, dan Agent AI secara lokal
+# - Aplikasi akan otomatis detect environment (local vs docker)
+#
+# Untuk PRODUCTION:
+# - Gunakan docker-compose up untuk menjalankan semua service
+# - Pastikan file .env sudah dikonfigurasi dengan benar
+# - Domain: https://report.ptkiansatang.com
+#
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # MySQL Database untuk Production
+  # Port mapping: 3308 (host) -> 3306 (container)
+  # - Host port 3308: untuk akses dari luar container (jika diperlukan)
+  # - Container port 3306: port internal MySQL di dalam container
+  # - Aplikasi di dalam Docker network menggunakan mysql-prod:3306
+  mysql-prod:
+    image: mysql:8.0
+    container_name: KSM-mysql-prod
+    restart: always
+    environment:
+      # Default password untuk Docker: admin123 (jika DB_PASSWORD tidak ter-set di .env)
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-admin123}
+      MYSQL_DATABASE: KSM_main
+    volumes:
+      - mysql_prod_data:/var/lib/mysql
+      - ./infrastructure/mysql-init:/docker-entrypoint-initdb.d
+      - ./logs/mysql:/var/log/mysql
+    ports:
+      - "3308:3306"  # External port 3308, internal port 3306
+    networks:
+      - KSM-prod-network
+    command: --default-authentication-plugin=mysql_native_password --general-log=1 --general-log-file=/var/log/mysql/mysql.log
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  # Redis Cache untuk Production
+  redis-prod:
+    image: redis:7-alpine
+    container_name: KSM-redis-prod
+    restart: always
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_prod_data:/data
+      - ./infrastructure/redis/redis.prod.conf:/usr/local/etc/redis/redis.conf
+      - ./logs/redis:/var/log/redis
+    networks:
+      - KSM-prod-network
+    command: redis-server /usr/local/etc/redis/redis.conf --appendonly yes --logfile /var/log/redis/redis.log
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 10s
+      retries: 5
+    # Jika menggunakan Redis password, uncomment baris berikut:
+    # command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD} --appendonly yes --logfile /var/log/redis/redis.log
+
+  # Agent AI Service untuk Production
+  agent-ai-prod:
+    build:
+      context: ../Agent AI
+      dockerfile: Dockerfile.production
+    container_name: KSM-agent-ai-prod
+    restart: always
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - KSM_API_KEY=${KSM_API_KEY}
+      - NGROK_AUTH_TOKEN=${NGROK_AUTH_TOKEN}
+      - DB_HOST=mysql-prod
+      - DB_PORT=3306
+      - DB_NAME=KSM_main
+      - DB_USER=${DB_USER:-root}
+      # Default password untuk Docker: admin123 (jika DB_PASSWORD tidak ter-set di .env)
+      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DATABASE_URL=mysql+pymysql://${DB_USER:-root}:${DB_PASSWORD:-admin123}@mysql-prod:3306/KSM_main
+      - REDIS_URL=redis://redis-prod:6379/0
+      # Jika menggunakan Redis password, ubah menjadi: redis://:${REDIS_PASSWORD}@redis-prod:6379/0
+    ports:
+      - "5001:5000"
+    depends_on:
+      mysql-prod:
+        condition: service_healthy
+      redis-prod:
+        condition: service_healthy
+    networks:
+      - KSM-prod-network
+    volumes:
+      - agent_ai_prod_logs:/app/logs
+      - agent_ai_prod_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+
+  # KSM Main Backend untuk Production
+  ksm-backend-prod:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.production
+    container_name: KSM-backend-prod
+    restart: always
+    environment:
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+      - DB_HOST=mysql-prod
+      - DB_PORT=3306
+      - DB_NAME=KSM_main
+      - DB_USER=${DB_USER:-root}
+      # Default password untuk Docker: admin123 (jika DB_PASSWORD tidak ter-set di .env)
+      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DATABASE_URL=mysql+pymysql://${DB_USER:-root}:${DB_PASSWORD:-admin123}@mysql-prod:3306/KSM_main
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - KSM_API_KEY=${KSM_API_KEY}
+      - REDIS_URL=redis://redis-prod:6379/0
+      # Jika menggunakan Redis password, ubah menjadi: redis://:${REDIS_PASSWORD}@redis-prod:6379/0
+      - AGENT_AI_URL=http://agent-ai-prod:5000
+      - LOG_LEVEL=INFO
+      # Set encryption key secara eksplisit untuk konsistensi
+      - EMAIL_DOMAIN_ENCRYPTION_KEY=nGLXDhCPmhCx5WugGHstyCkT7RY7P066rE_PnN5Hcqk=
+    ports:
+      - "8001:8000"
+    depends_on:
+      mysql-prod:
+        condition: service_healthy
+      redis-prod:
+        condition: service_healthy
+      agent-ai-prod:
+        condition: service_started
+    networks:
+      - KSM-prod-network
+    volumes:
+      - KSM_backend_prod_logs:/app/logs
+      - KSM_backend_prod_data:/app/data
+      - KSM_backend_prod_rag_documents:/app/rag_documents
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+
+  # KSM Main Frontend untuk Production (CRA)
+  ksm-frontend-prod:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.production
+      args:
+        - REACT_APP_API_URL=http://localhost:8001
+        - REACT_APP_ENVIRONMENT=production
+    container_name: KSM-frontend-prod
+    restart: always
+    environment:
+      - REACT_APP_API_URL=http://localhost:8001
+      - REACT_APP_ENVIRONMENT=production
+    ports:
+      - "3002:3000"
+    depends_on:
+      - ksm-backend-prod
+    networks:
+      - KSM-prod-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+
+  # KSM Main Frontend Vite untuk Production
+  ksm-frontend-vite-prod:
+    build:
+      context: ./frontend-vite
+      dockerfile: Dockerfile.production
+      args:
+        - VITE_APP_API_URL=http://localhost:8001
+        - VITE_APP_ENVIRONMENT=production
+    container_name: KSM-frontend-vite-prod
+    restart: always
+    environment:
+      - VITE_APP_API_URL=http://localhost:8001
+      - VITE_APP_ENVIRONMENT=production
+    ports:
+      - "3005:3000"
+    depends_on:
+      - ksm-backend-prod
+    networks:
+      - KSM-prod-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+
+  # Nginx Reverse Proxy untuk Production
+  nginx-prod:
+    image: nginx:alpine
+    container_name: KSM-nginx-prod
+    restart: always
+    ports:
+      - "8082:80"
+      - "8443:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.prod.conf:/etc/nginx/nginx.conf
+      - ./infrastructure/nginx/ssl:/etc/nginx/ssl
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      ksm-frontend-prod:
+        condition: service_started
+      ksm-backend-prod:
+        condition: service_started
+      agent-ai-prod:
+        condition: service_started
+      adminer-prod:
+        condition: service_started
+    networks:
+      - KSM-prod-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+
+  # Monitoring dengan Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: KSM-prometheus
+    restart: always
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - KSM-prod-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+
+  # Monitoring dengan Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: KSM-grafana
+    restart: always
+    ports:
+      - "3003:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infrastructure/monitoring/grafana:/etc/grafana/provisioning
+    networks:
+      - KSM-prod-network
+    depends_on:
+      - prometheus
+
+  # Adminer - Database Management Tool untuk MySQL
+  # Akses via: http://localhost:8083 atau https://report.ptkiansatang.com/adminer/
+  # Login dengan:
+  # - System: MySQL
+  # - Server: mysql-prod
+  # - Username: root (atau DB_USER dari .env)
+  # - Password: (DB_PASSWORD dari .env)
+  # - Database: KSM_main
+  adminer-prod:
+    image: adminer:latest
+    container_name: KSM-adminer-prod
+    restart: always
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql-prod
+    ports:
+      - "8083:8080"
+    depends_on:
+      mysql-prod:
+        condition: service_healthy
+    networks:
+      - KSM-prod-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080"]
+      timeout: 5s
+      retries: 3
+      interval: 10s
+
+volumes:
+  mysql_prod_data:
+  redis_prod_data:
+  agent_ai_prod_logs:
+  agent_ai_prod_data:
+  KSM_backend_prod_logs:
+  KSM_backend_prod_data:
+  KSM_backend_prod_rag_documents:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  KSM-prod-network:
+    driver: bridge

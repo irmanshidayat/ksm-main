@@ -1,0 +1,59 @@
+# KSM Main Backend Production Dockerfile
+FROM python:3.12-slim
+
+# Set working directory
+WORKDIR /app
+
+# Set environment variables untuk production
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    FLASK_APP=app.py \
+    FLASK_ENV=production \
+    FLASK_DEBUG=0 \
+    DB_HOST=mysql-prod \
+    DB_PORT=3306 \
+    DB_NAME=KSM_main \
+    DB_USER=root \
+    DB_PASSWORD=password
+
+# Install system dependencies untuk production
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    default-libmysqlclient-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements files
+COPY requirements.txt ./
+
+# Install Python dependencies untuk production
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create necessary directories untuk production
+RUN mkdir -p logs data storage faiss_indexes temp rag_documents
+
+# Set permissions
+RUN chmod +x app.py
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
+# Create non-root user untuk security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+RUN chown -R appuser:appuser /app
+USER appuser
+
+# Expose port
+EXPOSE 8000
+
+# Health check untuk production
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/api/health || exit 1
+
+# Run the application via entrypoint (jalankan migrasi dulu)
+CMD ["/app/docker-entrypoint.sh"]

@@ -1,0 +1,80 @@
+# KSM Main Grafana Data Sources Configuration
+# Configuration untuk data sources Grafana
+
+apiVersion: 1
+
+datasources:
+  # Prometheus Data Source
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://ksm-prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: 15s
+      queryTimeout: 60s
+      httpMethod: POST
+
+  # MySQL Data Source
+  - name: MySQL
+    type: mysql
+    access: proxy
+    url: ksm-mysql-prod:3306
+    database: ksm_main
+    user: ksm_prod_user
+    secureJsonData:
+      password: your_secure_production_password
+    jsonData:
+      maxOpenConns: 100
+      maxIdleConns: 100
+      connMaxLifetime: 14400
+
+  # Redis Data Source
+  - name: Redis
+    type: redis
+    access: proxy
+    url: ksm-redis-prod:6379
+    jsonData:
+      client: standalone
+      timeout: 10s
+      poolSize: 10
+
+  # InfluxDB Data Source (jika ada)
+  - name: InfluxDB
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    database: ksm_metrics
+    user: admin
+    secureJsonData:
+      password: your_influxdb_password
+    jsonData:
+      timeInterval: 15s
+      httpMode: GET
+
+  # Elasticsearch Data Source (jika ada)
+  - name: Elasticsearch
+    type: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    jsonData:
+      index: ksm-logs-*
+      timeField: @timestamp
+      esVersion: 7.0.0
+      maxConcurrentShardRequests: 5
+      interval: Daily
+      timeInterval: 15s
+
+  # Loki Data Source (jika ada)
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: prometheus
+          matcherRegex: "traceID=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"

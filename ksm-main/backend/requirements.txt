@@ -1,0 +1,94 @@
+Flask==3.0.0
+Werkzeug==3.0.1
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.5
+Flask-CORS==4.0.0
+Flask-JWT-Extended==4.6.0
+
+# =============================================================================
+# DATABASE & ORM (Required)
+# =============================================================================
+SQLAlchemy==2.0.25
+PyMySQL==1.1.1
+
+# =============================================================================
+# DATA VALIDATION (Required - Digunakan di stok_barang)
+# =============================================================================
+pydantic==2.6.1
+
+# =============================================================================
+# ENVIRONMENT & CONFIG (Required)
+# =============================================================================
+python-dotenv==1.0.0
+
+# =============================================================================
+# HTTP CLIENT (Required)
+# =============================================================================
+requests==2.31.0
+
+# =============================================================================
+# AI/ML CORE (Required - Digunakan di RAG system)
+# =============================================================================
+qdrant-client==1.15.1
+numpy==1.26.4
+openai>=1.0.0
+tiktoken>=0.5.0
+
+# =============================================================================
+# DOCUMENT PROCESSING (Required - Digunakan di knowledge base)
+# =============================================================================
+PyPDF2==3.0.1
+pdfplumber==0.10.3
+
+# WEBSOCKET SUPPORT (Optional - Untuk real-time features)
+# =============================================================================
+Flask-SocketIO==5.3.6 
+
+# =============================================================================
+# FILE TYPE DETECTION (Required - Digunakan di file processing)
+# =============================================================================
+python-magic==0.4.27
+
+# =============================================================================
+# ATTENDANCE SYSTEM (Required - Untuk fitur absensi karyawan)
+# =============================================================================
+openpyxl>=3.1.2  # Excel export
+reportlab>=4.0.0  # PDF export
+Pillow>=10.0.0   # Image processing untuk base64
+
+# =============================================================================
+# DAILY TASK NOTIFICATION (Required - Untuk notifikasi task harian)
+# =============================================================================
+APScheduler>=3.10.4  # Scheduler untuk notifikasi otomatis
+pytz>=2023.3        # Timezone support
+
+# =============================================================================
+# DATA PROCESSING (Required - Digunakan di bulk import/export)
+# =============================================================================
+pandas>=2.0.0       # Data manipulation dan processing
+
+# =============================================================================
+# CACHING & BACKGROUND TASKS (Optional - Untuk performance optimization)
+# =============================================================================
+redis>=4.0.0        # Caching dan session management
+celery>=5.0.0       # Background task processing
+
+# =============================================================================
+# UTILITY LIBRARIES (Required - Untuk utility functions)
+# =============================================================================
+python-dateutil>=2.8.0  # Date parsing utilities
+email-validator>=2.0.0   # Email validation
+psutil>=5.9.0            # System and process utilities (untuk health monitoring)
+
+# =============================================================================
+# EMAIL SERVICE (Required - Untuk fitur email otomatis)
+# =============================================================================
+secure-smtplib>=0.1.1   # Secure SMTP connection
+
+# =============================================================================
+# GMAIL API INTEGRATION (Required - Untuk Gmail OAuth dan API)
+# =============================================================================
+google-auth>=2.23.4
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1
+google-api-python-client>=2.108.0

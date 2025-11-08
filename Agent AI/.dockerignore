@@ -1,0 +1,90 @@
+# Agent AI .dockerignore
+# File dan direktori yang akan diabaikan saat build Docker image
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual Environment
+agent_venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Cache
+cache/
+*.cache
+.cache/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+*.md
+docs/
+
+# Test files
+tests/
+test_*.py
+*_test.py
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# ChromaDB data (akan dibuat di container)
+chromadb_data/
+
+# Indexes (akan dibuat di container)
+indexes/
+
+# Redis data (akan dibuat di container)
+redis/
+
+# Infrastructure (tidak diperlukan di container)
+infrastructure/
+
+# Backup files
+*.bak
+*.backup
+

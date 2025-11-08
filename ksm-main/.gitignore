@@ -1,0 +1,9 @@
+# =============================================================================
+# KSM MAIN - SUBDIRECTORY .GITIGNORE
+# =============================================================================
+# Note: Root .gitignore already covers most patterns
+# This file only contains ksm-main specific patterns if needed
+# =============================================================================
+
+# Project-specific ignores (if any)
+# Most patterns are handled by root .gitignore

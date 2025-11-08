@@ -1,0 +1,101 @@
+# KSM Main Backend .dockerignore
+# File dan direktori yang akan diabaikan saat build Docker image
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual Environment
+ksm_venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Cache
+cache/
+*.cache
+.cache/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+instance/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+*.md
+docs/
+
+# Test files
+tests/
+test_*.py
+*_test.py
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+temp/
+
+# Uploads (akan dibuat di container dengan volume)
+uploads/
+
+# RAG Documents (akan dibuat di container dengan volume)
+rag_documents/
+
+# FAISS Indexes (akan dibuat di container)
+faiss_indexes/
+
+# Infrastructure (tidak diperlukan di container)
+infrastructure/
+
+# Monitoring scripts (tidak diperlukan di container)
+monitoring/
+
+# Schedulers (akan dijalankan di container)
+# schedulers/ - JANGAN di-ignore, diperlukan
+
+# Backup files
+*.bak
+*.backup
+
+# Google OAuth credentials (akan di-copy jika diperlukan)
+# client_secret_*.json - JANGAN di-ignore jika diperlukan
+
