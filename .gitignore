@@ -242,8 +242,9 @@ test_*.py
 # GitLab setup files (temporary)
 gitlab-setup/
 
-# Catatan Penting (may contain sensitive info)
-Catatan Penting/
+# Catatan Penting - Allow tutorial files
+# Catatan Penting/*.md
+# Note: Tutorial files are allowed, but other sensitive files should be excluded manually
 
 # =============================================================================
 # DOCKER (Keep docker-compose.yml, ignore volumes)
