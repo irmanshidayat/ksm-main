@@ -2,14 +2,36 @@ import os
 from dotenv import load_dotenv
 import logging
 
-# Load .env file - pastikan dipanggil sebelum membaca environment variables
-env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
-load_dotenv(dotenv_path=env_path, override=True)  # override=True untuk memastikan .env di-load
+# Load .env file dengan fallback strategy:
+# 1. Coba load dari backend/.env (untuk backward compatibility)
+# 2. Jika tidak ada, fallback ke root ksm-main/.env (untuk unified env)
+backend_env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+root_env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), '.env')
 
 logger_config = logging.getLogger(__name__)
-logger_config.info(f"📁 Loading .env from: {env_path}")
-logger_config.info(f"📁 .env file exists: {os.path.exists(env_path)}")
-if os.path.exists(env_path):
+
+# Priority: backend/.env > root/.env
+env_loaded = False
+env_path_used = None
+
+if os.path.exists(backend_env_path):
+    load_dotenv(dotenv_path=backend_env_path, override=True)
+    env_loaded = True
+    env_path_used = backend_env_path
+    logger_config.info(f"📁 Loading .env from backend folder: {backend_env_path}")
+elif os.path.exists(root_env_path):
+    load_dotenv(dotenv_path=root_env_path, override=True)
+    env_loaded = True
+    env_path_used = root_env_path
+    logger_config.info(f"📁 Loading .env from root folder: {root_env_path}")
+else:
+    logger_config.warning(f"⚠️  No .env file found! Tried:")
+    logger_config.warning(f"   - {backend_env_path}")
+    logger_config.warning(f"   - {root_env_path}")
+    logger_config.warning(f"   Using system environment variables only")
+
+if env_loaded:
+    logger_config.info(f"✅ .env file loaded successfully from: {env_path_used}")
     logger_config.info(f"📁 CORS_ORIGINS from .env: {os.environ.get('CORS_ORIGINS', 'NOT SET')}")
 
 def detect_environment():
