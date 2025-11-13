@@ -86,6 +86,12 @@ instance/
 .env.production.local
 .env.*.local
 
+# Environment example files (tidak di-upload ke GitHub)
+env.example
+env.dev.example
+.env.example
+.env.dev.example
+
 # Secrets and API keys
 *secret*
 *api_key*
