@@ -14,6 +14,15 @@ def jwt_required_custom(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
         try:
+            # Skip authentication for OPTIONS requests (CORS preflight)
+            if request.method == 'OPTIONS':
+                from flask import make_response
+                response = make_response('', 200)
+                response.headers['Access-Control-Allow-Origin'] = '*'
+                response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+                response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+                return response
+            
             # Get Authorization header
             auth_header = request.headers.get('Authorization')
             if not auth_header:
