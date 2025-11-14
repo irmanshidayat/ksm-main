@@ -769,34 +769,124 @@ unable to prepare context: path "/opt/ksm-main-dev/frontend-vite" not found
 
 **PENTING**: VPS menggunakan port SSH **22** (port default).
 
-1. **Test SSH connection**
-   ```bash
-   # Gunakan port 22 (default, flag -p 22 opsional)
-   ssh -p 22 -i ~/.ssh/github_actions_deploy user@server
-   
-   # Atau untuk manual connection (port 22 adalah default)
-   ssh root@72.61.142.109
-   # atau
-   ssh -p 22 root@72.61.142.109
-   ```
+#### Error: "Permission denied (publickey,password)"
 
-2. **Check SSH key format**
-   - Pastikan private key di GitHub Secrets lengkap dengan header/footer
-   - Format: `-----BEGIN OPENSSH PRIVATE KEY----- ... -----END OPENSSH PRIVATE KEY-----`
+Error ini terjadi ketika SSH authentication gagal. Berikut langkah-langkah untuk memperbaikinya:
 
-3. **Check server SSH config**
-   ```bash
-   # Di server
-   sudo nano /etc/ssh/sshd_config
-   # Pastikan: 
-   #   - Port 22
-   #   - PubkeyAuthentication yes
-   ```
+**1. Pastikan SSH Key Sudah Di-Generate**
 
-4. **Troubleshooting Connection Timeout**
-   - Pastikan firewall tidak memblokir port 22
-   - Test konektivitas: `ping 72.61.142.109`
-   - Test port: `telnet 72.61.142.109 22` atau `nc -zv 72.61.142.109 22`
+```bash
+# Generate SSH key pair (jika belum ada)
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/github_actions_deploy
+
+# Jangan set passphrase (tekan Enter kosong) untuk GitHub Actions
+```
+
+**2. Copy Public Key ke Server**
+
+**Cara Otomatis (Recommended):**
+```bash
+ssh-copy-id -i ~/.ssh/github_actions_deploy.pub -p 22 root@72.61.142.109
+```
+
+**Cara Manual (jika ssh-copy-id tidak tersedia):**
+```bash
+# Copy public key ke server
+cat ~/.ssh/github_actions_deploy.pub | ssh -p 22 root@72.61.142.109 \
+  "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+```
+
+**3. Test SSH Connection Manual**
+
+```bash
+# Test dengan SSH key
+ssh -p 22 -i ~/.ssh/github_actions_deploy root@72.61.142.109
+
+# Jika berhasil, Anda akan masuk ke server tanpa password
+# Jika masih gagal, lanjut ke step berikutnya
+```
+
+**4. Copy Private Key ke GitHub Secrets**
+
+```bash
+# Tampilkan private key
+cat ~/.ssh/github_actions_deploy
+
+# Copy SEMUA output termasuk header dan footer:
+# -----BEGIN OPENSSH PRIVATE KEY-----
+# ...
+# -----END OPENSSH PRIVATE KEY-----
+```
+
+**PENTING**: 
+- Copy **SEMUA** isi file, termasuk header `-----BEGIN OPENSSH PRIVATE KEY-----` dan footer `-----END OPENSSH PRIVATE KEY-----`
+- Jangan ada spasi atau karakter tambahan di awal/akhir
+- Pastikan tidak ada line break yang hilang
+
+**5. Verify Server SSH Configuration**
+
+SSH ke server dan periksa konfigurasi:
+
+```bash
+# SSH ke server (gunakan password jika masih belum bisa key-based)
+ssh root@72.61.142.109
+
+# Edit SSH config
+sudo nano /etc/ssh/sshd_config
+
+# Pastikan setting berikut ada dan tidak di-comment:
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+PasswordAuthentication yes  # Bisa di-set no setelah key-based auth bekerja
+
+# Restart SSH service
+sudo systemctl restart sshd
+
+# Verifikasi authorized_keys file
+cat ~/.ssh/authorized_keys
+# Harus ada public key yang sesuai dengan private key Anda
+```
+
+**6. Verify File Permissions di Server**
+
+```bash
+# Di server, pastikan permission benar:
+chmod 700 ~/.ssh
+chmod 600 ~/.ssh/authorized_keys
+
+# Verify ownership
+ls -la ~/.ssh/
+# Harus owned by user yang digunakan (root atau user lain)
+```
+
+**7. Test Connection dari GitHub Actions**
+
+Setelah semua setup selesai, workflow akan otomatis test SSH connection. Jika masih gagal, cek log GitHub Actions untuk detail error.
+
+#### Troubleshooting Lainnya
+
+**Connection Timeout:**
+```bash
+# Test konektivitas
+ping 72.61.142.109
+
+# Test port SSH
+telnet 72.61.142.109 22
+# atau
+nc -zv 72.61.142.109 22
+
+# Pastikan firewall tidak memblokir port 22
+```
+
+**SSH Key Format Error:**
+- Pastikan private key di GitHub Secrets lengkap dengan header/footer
+- Format: `-----BEGIN OPENSSH PRIVATE KEY----- ... -----END OPENSSH PRIVATE KEY-----`
+- Tidak ada spasi tambahan di awal/akhir
+- Semua line break harus ada
+
+**Key Mismatch:**
+- Pastikan public key di server (`~/.ssh/authorized_keys`) match dengan private key di GitHub Secrets
+- Generate ulang key pair jika perlu dan copy public key ke server lagi
 
 ## Monitoring
 
