@@ -46,8 +46,17 @@ jobs:
 
       - name: Add server to known hosts
         run: |
+          if [ -z "${{ secrets.SSH_HOST_PROD }}" ]; then
+            echo "❌ ERROR: SSH_HOST_PROD secret is not set!"
+            exit 1
+          fi
           mkdir -p ~/.ssh
-          ssh-keyscan -H -p 22 ${{ secrets.SSH_HOST_PROD }} >> ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          ssh-keyscan -H -p 22 ${{ secrets.SSH_HOST_PROD }} >> ~/.ssh/known_hosts 2>&1 || {
+            echo "⚠️  Warning: ssh-keyscan failed, but continuing..."
+            echo "This might be due to network issues or server unreachable."
+          }
+          chmod 600 ~/.ssh/known_hosts
 
       - name: Create deployment directory
         env:
