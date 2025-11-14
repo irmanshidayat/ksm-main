@@ -12,6 +12,8 @@ import base64
 import io
 import json
 from io import BytesIO
+import pymysql
+from sqlalchemy.exc import OperationalError
 
 from config.database import db
 from domains.attendance.models.attendance_models import (
@@ -38,6 +40,16 @@ except ImportError:
     logging.warning("reportlab not installed, PDF export will not work")
 
 logger = logging.getLogger(__name__)
+
+def is_encryption_error(error: Exception) -> bool:
+    """Cek apakah error terkait database encryption"""
+    error_msg = str(error).lower()
+    return (
+        'encrypted' in error_msg or 
+        'decryption' in error_msg or 
+        'encryption management plugin' in error_msg or
+        'error 192' in error_msg
+    )
 
 class AttendanceService:
     """Service untuk mengelola absensi karyawan"""
@@ -332,22 +344,34 @@ class AttendanceService:
             
             if user_id:
                 # Status untuk user tertentu
-                record = AttendanceRecord.query.filter(
-                    AttendanceRecord.user_id == user_id,
-                    db.func.date(AttendanceRecord.clock_in) == today
-                ).first()
-                
-                if record:
-                    return {
-                        'user_id': user_id,
-                        'has_clocked_in': True,
-                        'has_clocked_out': record.clock_out is not None,
-                        'clock_in_time': record.clock_in.isoformat(),
-                        'clock_out_time': record.clock_out.isoformat() if record.clock_out else None,
-                        'status': record.status,
-                        'work_duration_hours': record.work_duration_minutes / 60 if record.work_duration_minutes else 0
-                    }
-                else:
+                try:
+                    record = AttendanceRecord.query.filter(
+                        AttendanceRecord.user_id == user_id,
+                        db.func.date(AttendanceRecord.clock_in) == today
+                    ).first()
+                    
+                    if record:
+                        return {
+                            'user_id': user_id,
+                            'has_clocked_in': True,
+                            'has_clocked_out': record.clock_out is not None,
+                            'clock_in_time': record.clock_in.isoformat() if record.clock_in else None,
+                            'clock_out_time': record.clock_out.isoformat() if record.clock_out else None,
+                            'status': record.status or 'present',
+                            'work_duration_hours': round(record.work_duration_minutes / 60, 2) if record.work_duration_minutes else 0
+                        }
+                    else:
+                        return {
+                            'user_id': user_id,
+                            'has_clocked_in': False,
+                            'has_clocked_out': False,
+                            'clock_in_time': None,
+                            'clock_out_time': None,
+                            'status': 'absent',
+                            'work_duration_hours': 0
+                        }
+                except Exception as e:
+                    logger.error(f"Error querying today status for user {user_id}: {str(e)}", exc_info=True)
                     return {
                         'user_id': user_id,
                         'has_clocked_in': False,
@@ -359,25 +383,41 @@ class AttendanceService:
                     }
             else:
                 # Status untuk semua user (admin view)
-                total_users = User.query.filter(User.is_active == True).count()
-                clocked_in_users = AttendanceRecord.query.filter(
-                    db.func.date(AttendanceRecord.clock_in) == today
-                ).count()
-                clocked_out_users = AttendanceRecord.query.filter(
-                    db.func.date(AttendanceRecord.clock_in) == today,
-                    AttendanceRecord.clock_out.isnot(None)
-                ).count()
+                try:
+                    total_users = User.query.filter(User.is_active == True).count()
+                    clocked_in_users = AttendanceRecord.query.filter(
+                        db.func.date(AttendanceRecord.clock_in) == today
+                    ).count()
+                    clocked_out_users = AttendanceRecord.query.filter(
+                        db.func.date(AttendanceRecord.clock_in) == today,
+                        AttendanceRecord.clock_out.isnot(None)
+                    ).count()
+                    
+                    return {
+                        'total_users': total_users,
+                        'clocked_in_users': clocked_in_users,
+                        'clocked_out_users': clocked_out_users,
+                        'absent_users': total_users - clocked_in_users,
+                        'attendance_rate': round((clocked_in_users / total_users * 100), 2) if total_users > 0 else 0
+                    }
+                except Exception as e:
+                    logger.error(f"Error querying today status for all users: {str(e)}", exc_info=True)
+                    return {
+                        'total_users': 0,
+                        'clocked_in_users': 0,
+                        'clocked_out_users': 0,
+                        'absent_users': 0,
+                        'attendance_rate': 0
+                    }
                 
-                return {
-                    'total_users': total_users,
-                    'clocked_in_users': clocked_in_users,
-                    'clocked_out_users': clocked_out_users,
-                    'absent_users': total_users - clocked_in_users,
-                    'attendance_rate': round((clocked_in_users / total_users * 100), 2) if total_users > 0 else 0
-                }
-                
+        except (OperationalError, pymysql.err.OperationalError) as e:
+            if is_encryption_error(e):
+                logger.error(f"Error get today status - Database encryption error: {str(e)}", exc_info=True)
+                raise ValueError("DATABASE_ENCRYPTION_ERROR")
+            logger.error(f"Error get today status - Database error: {str(e)}", exc_info=True)
+            return {}
         except Exception as e:
-            logger.error(f"Error get today status: {str(e)}")
+            logger.error(f"Error get today status: {str(e)}", exc_info=True)
             return {}
     
     def submit_leave_request(self, user_id: int, leave_type: str, start_date: date, 
@@ -591,55 +631,90 @@ class AttendanceService:
             if not end_date:
                 end_date = date.today()  # Hari ini
             
-            # Query base
-            query = AttendanceRecord.query.filter(
-                db.func.date(AttendanceRecord.clock_in) >= start_date,
-                db.func.date(AttendanceRecord.clock_in) <= end_date
-            )
+            # Query base dengan error handling
+            try:
+                query = AttendanceRecord.query.filter(
+                    db.func.date(AttendanceRecord.clock_in) >= start_date,
+                    db.func.date(AttendanceRecord.clock_in) <= end_date
+                )
+                
+                if user_id:
+                    query = query.filter(AttendanceRecord.user_id == user_id)
+                
+                records = query.all()
+            except Exception as e:
+                logger.error(f"Error querying dashboard stats: {str(e)}", exc_info=True)
+                records = []
             
-            if user_id:
-                query = query.filter(AttendanceRecord.user_id == user_id)
-            
-            records = query.all()
-            
-            # Hitung stats
-            total_days = len(records)
-            present_days = len([r for r in records if r.status == 'present'])
-            late_days = len([r for r in records if r.status == 'late'])
-            absent_days = len([r for r in records if r.status == 'absent'])
-            half_day_days = len([r for r in records if r.status == 'half_day'])
-            
-            # Hitung total jam kerja
-            total_work_hours = sum([r.work_duration_minutes or 0 for r in records]) / 60
-            total_overtime_hours = sum([r.overtime_minutes or 0 for r in records]) / 60
-            
-            # Hitung attendance rate
-            working_days = (end_date - start_date).days + 1
-            attendance_rate = round((present_days + late_days) / working_days * 100, 2) if working_days > 0 else 0
-            
-            return {
-                'period': {
-                    'start_date': start_date.isoformat(),
-                    'end_date': end_date.isoformat(),
-                    'working_days': working_days
-                },
-                'attendance': {
-                    'total_days': total_days,
-                    'present_days': present_days,
-                    'late_days': late_days,
-                    'absent_days': absent_days,
-                    'half_day_days': half_day_days,
-                    'attendance_rate': attendance_rate
-                },
-                'work_hours': {
-                    'total_work_hours': round(total_work_hours, 2),
-                    'total_overtime_hours': round(total_overtime_hours, 2),
-                    'average_daily_hours': round(total_work_hours / total_days, 2) if total_days > 0 else 0
+            # Hitung stats dengan error handling
+            try:
+                total_days = len(records)
+                present_days = len([r for r in records if r.status == 'present'])
+                late_days = len([r for r in records if r.status == 'late'])
+                absent_days = len([r for r in records if r.status == 'absent'])
+                half_day_days = len([r for r in records if r.status == 'half_day'])
+                
+                # Hitung total jam kerja dengan safe access
+                total_work_hours = sum([(r.work_duration_minutes or 0) for r in records]) / 60
+                total_overtime_hours = sum([(r.overtime_minutes or 0) for r in records]) / 60
+                
+                # Hitung attendance rate
+                working_days = (end_date - start_date).days + 1
+                attendance_rate = round((present_days + late_days) / working_days * 100, 2) if working_days > 0 else 0
+                
+                return {
+                    'period': {
+                        'start_date': start_date.isoformat(),
+                        'end_date': end_date.isoformat(),
+                        'working_days': working_days
+                    },
+                    'attendance': {
+                        'total_days': total_days,
+                        'present_days': present_days,
+                        'late_days': late_days,
+                        'absent_days': absent_days,
+                        'half_day_days': half_day_days,
+                        'attendance_rate': attendance_rate
+                    },
+                    'work_hours': {
+                        'total_work_hours': round(total_work_hours, 2),
+                        'total_overtime_hours': round(total_overtime_hours, 2),
+                        'average_daily_hours': round(total_work_hours / total_days, 2) if total_days > 0 else 0
+                    }
                 }
-            }
+            except Exception as e:
+                logger.error(f"Error calculating dashboard stats: {str(e)}", exc_info=True)
+                # Return default values
+                working_days = (end_date - start_date).days + 1
+                return {
+                    'period': {
+                        'start_date': start_date.isoformat(),
+                        'end_date': end_date.isoformat(),
+                        'working_days': working_days
+                    },
+                    'attendance': {
+                        'total_days': 0,
+                        'present_days': 0,
+                        'late_days': 0,
+                        'absent_days': 0,
+                        'half_day_days': 0,
+                        'attendance_rate': 0
+                    },
+                    'work_hours': {
+                        'total_work_hours': 0,
+                        'total_overtime_hours': 0,
+                        'average_daily_hours': 0
+                    }
+                }
             
+        except (OperationalError, pymysql.err.OperationalError) as e:
+            if is_encryption_error(e):
+                logger.error(f"Error get dashboard stats - Database encryption error: {str(e)}", exc_info=True)
+                raise ValueError("DATABASE_ENCRYPTION_ERROR")
+            logger.error(f"Error get dashboard stats - Database error: {str(e)}", exc_info=True)
+            return {}
         except Exception as e:
-            logger.error(f"Error get dashboard stats: {str(e)}")
+            logger.error(f"Error get dashboard stats: {str(e)}", exc_info=True)
             return {}
     
     def export_to_excel(self, records: List[Dict], filename: str = None) -> BytesIO:

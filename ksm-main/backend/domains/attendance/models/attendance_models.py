@@ -62,32 +62,55 @@ class AttendanceRecord(db.Model):
     )
     
     def to_dict(self):
-        return {
-            'id': self.id,
-            'user_id': self.user_id,
-            'user_name': self.user.username if self.user else None,
-            'clock_in': self.clock_in.isoformat() if self.clock_in else None,
-            'clock_in_latitude': self.clock_in_latitude,
-            'clock_in_longitude': self.clock_in_longitude,
-            'clock_in_address': self.clock_in_address,
-            'clock_in_photo': self.clock_in_photo,
-            'clock_out': self.clock_out.isoformat() if self.clock_out else None,
-            'clock_out_latitude': self.clock_out_latitude,
-            'clock_out_longitude': self.clock_out_longitude,
-            'clock_out_address': self.clock_out_address,
-            'clock_out_photo': self.clock_out_photo,
-            'work_duration_minutes': self.work_duration_minutes,
-            'work_duration_hours': round(self.work_duration_minutes / 60, 2) if self.work_duration_minutes else 0,
-            'overtime_minutes': self.overtime_minutes,
-            'overtime_hours': round(self.overtime_minutes / 60, 2) if self.overtime_minutes else 0,
-            'status': self.status,
-            'notes': self.notes,
-            'is_approved': self.is_approved,
-            'approved_by': self.approved_by,
-            'approved_at': self.approved_at.isoformat() if self.approved_at else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
-        }
+        try:
+            # Safe access to user relationship
+            user_name = None
+            if self.user:
+                try:
+                    user_name = self.user.username if hasattr(self.user, 'username') else None
+                except Exception:
+                    user_name = None
+            
+            return {
+                'id': self.id,
+                'user_id': self.user_id,
+                'user_name': user_name,
+                'clock_in': self.clock_in.isoformat() if self.clock_in else None,
+                'clock_in_latitude': self.clock_in_latitude,
+                'clock_in_longitude': self.clock_in_longitude,
+                'clock_in_address': self.clock_in_address,
+                'clock_in_photo': self.clock_in_photo,
+                'clock_out': self.clock_out.isoformat() if self.clock_out else None,
+                'clock_out_latitude': self.clock_out_latitude,
+                'clock_out_longitude': self.clock_out_longitude,
+                'clock_out_address': self.clock_out_address,
+                'clock_out_photo': self.clock_out_photo,
+                'work_duration_minutes': self.work_duration_minutes,
+                'work_duration_hours': round(self.work_duration_minutes / 60, 2) if self.work_duration_minutes else 0,
+                'overtime_minutes': self.overtime_minutes or 0,
+                'overtime_hours': round(self.overtime_minutes / 60, 2) if self.overtime_minutes else 0,
+                'status': self.status,
+                'notes': self.notes,
+                'is_approved': self.is_approved if self.is_approved is not None else True,
+                'approved_by': self.approved_by,
+                'approved_at': self.approved_at.isoformat() if self.approved_at else None,
+                'created_at': self.created_at.isoformat() if self.created_at else None,
+                'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            }
+        except Exception as e:
+            # Fallback jika ada error
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in AttendanceRecord.to_dict(): {str(e)}", exc_info=True)
+            return {
+                'id': self.id,
+                'user_id': self.user_id,
+                'user_name': None,
+                'clock_in': self.clock_in.isoformat() if self.clock_in else None,
+                'clock_out': self.clock_out.isoformat() if self.clock_out else None,
+                'status': self.status or 'present',
+                'error': 'Error serializing record'
+            }
     
     def calculate_work_duration(self):
         """Hitung durasi kerja jika clock out sudah ada"""

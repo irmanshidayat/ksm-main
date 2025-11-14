@@ -11,8 +11,11 @@ from datetime import datetime, date, timedelta
 from typing import Dict, List
 import logging
 import io
+from sqlalchemy.orm import joinedload, contains_eager
+import pymysql
+from sqlalchemy.exc import OperationalError
 
-from domains.attendance.services.attendance_service import attendance_service
+from domains.attendance.services.attendance_service import attendance_service, is_encryption_error
 from domains.task.controllers.daily_task_controller import DailyTaskController
 from shared.middlewares.role_auth import require_admin, block_vendor
 from config.database import db
@@ -243,9 +246,21 @@ def get_attendance():
         end_date_obj = None
         
         if start_date:
-            start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+            try:
+                start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'message': 'Format start_date tidak valid (harus YYYY-MM-DD)'
+                }), 400
         if end_date:
-            end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+            try:
+                end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'message': 'Format end_date tidak valid (harus YYYY-MM-DD)'
+                }), 400
         
         # Convert user_id to int if provided
         user_id_int = None
@@ -271,8 +286,15 @@ def get_attendance():
             if current_user and current_user.role != 'admin':
                 user_id_int = current_user_id
         
-        # Query dengan pagination
-        query = AttendanceRecord.query
+        # Query dengan pagination dan eager load relasi user
+        from domains.auth.models.auth_models import User
+        
+        if search:
+            # Jika ada search, gunakan join dengan contains_eager untuk eager loading
+            query = AttendanceRecord.query.join(User, AttendanceRecord.user_id == User.id).options(contains_eager(AttendanceRecord.user))
+        else:
+            # Jika tidak ada search, gunakan joinedload biasa
+            query = AttendanceRecord.query.options(joinedload(AttendanceRecord.user))
         
         if start_date_obj:
             query = query.filter(db.func.date(AttendanceRecord.clock_in) >= start_date_obj)
@@ -285,8 +307,6 @@ def get_attendance():
         
         # Tambahkan filter pencarian
         if search:
-            from domains.auth.models.auth_models import User
-            query = query.join(User, AttendanceRecord.user_id == User.id)
             search_term = f"%{search}%"
             query = query.filter(
                 db.or_(
@@ -296,28 +316,131 @@ def get_attendance():
                 )
             )
         
-        # Hitung total
-        total = query.count()
+        # Hitung total (gunakan distinct jika ada join untuk menghindari duplikasi)
+        # Buat query count yang efisien dengan hanya menghitung ID, tidak memilih semua kolom
+        if search:
+            # Untuk count dengan join, gunakan distinct pada id tanpa memilih semua kolom
+            count_query = db.session.query(db.func.count(db.distinct(AttendanceRecord.id)))
+            # Apply filter yang sama tanpa eager loading
+            if start_date_obj:
+                count_query = count_query.filter(db.func.date(AttendanceRecord.clock_in) >= start_date_obj)
+            if end_date_obj:
+                count_query = count_query.filter(db.func.date(AttendanceRecord.clock_in) <= end_date_obj)
+            if user_id_int:
+                count_query = count_query.filter(AttendanceRecord.user_id == user_id_int)
+            if status:
+                count_query = count_query.filter(AttendanceRecord.status == status)
+            # Apply search filter dengan join
+            count_query = count_query.join(User, AttendanceRecord.user_id == User.id)
+            search_term = f"%{search}%"
+            count_query = count_query.filter(
+                db.or_(
+                    User.username.ilike(search_term),
+                    AttendanceRecord.clock_in_address.ilike(search_term),
+                    AttendanceRecord.clock_out_address.ilike(search_term)
+                )
+            )
+            total = count_query.scalar()
+        else:
+            # Untuk query tanpa search, gunakan count yang efisien dengan hanya ID
+            count_query = db.session.query(db.func.count(AttendanceRecord.id))
+            if start_date_obj:
+                count_query = count_query.filter(db.func.date(AttendanceRecord.clock_in) >= start_date_obj)
+            if end_date_obj:
+                count_query = count_query.filter(db.func.date(AttendanceRecord.clock_in) <= end_date_obj)
+            if user_id_int:
+                count_query = count_query.filter(AttendanceRecord.user_id == user_id_int)
+            if status:
+                count_query = count_query.filter(AttendanceRecord.status == status)
+            total = count_query.scalar()
         
         # Apply pagination
-        records = query.order_by(AttendanceRecord.clock_in.desc()).offset((page - 1) * per_page).limit(per_page).all()
+        try:
+            if search:
+                # Gunakan subquery untuk mendapatkan id yang unik, lalu query ulang dengan eager loading
+                subquery = query.with_entities(AttendanceRecord.id).distinct().order_by(AttendanceRecord.clock_in.desc()).offset((page - 1) * per_page).limit(per_page).subquery()
+                # Dapatkan list id dari subquery
+                ids = [row[0] for row in db.session.query(subquery.c.id).all()]
+                # Query ulang dengan eager loading menggunakan ids
+                if ids:
+                    records = AttendanceRecord.query.filter(AttendanceRecord.id.in_(ids)).options(joinedload(AttendanceRecord.user)).order_by(AttendanceRecord.clock_in.desc()).all()
+                else:
+                    records = []
+            else:
+                records = query.order_by(AttendanceRecord.clock_in.desc()).offset((page - 1) * per_page).limit(per_page).all()
+            
+            # Serialize records dengan error handling
+            items = []
+            for record in records:
+                try:
+                    items.append(record.to_dict())
+                except Exception as e:
+                    logger.error(f"Error serializing attendance record {record.id}: {str(e)}", exc_info=True)
+                    # Skip record yang error, atau tambahkan dengan data minimal
+                    items.append({
+                        'id': record.id,
+                        'user_id': record.user_id,
+                        'user_name': None,
+                        'clock_in': record.clock_in.isoformat() if record.clock_in else None,
+                        'status': record.status or 'present',
+                        'error': 'Error serializing record'
+                    })
+            
+            return jsonify({
+                'success': True,
+                'data': {
+                    'items': items,
+                    'total': total,
+                    'page': page,
+                    'per_page': per_page,
+                    'pages': (total + per_page - 1) // per_page if total > 0 else 0
+                }
+            }), 200
+        except Exception as e:
+            logger.error(f"Error in pagination/serialization: {str(e)}", exc_info=True)
+            raise
         
-        return jsonify({
-            'success': True,
-            'data': {
-                'items': [record.to_dict() for record in records],
-                'total': total,
-                'page': page,
-                'per_page': per_page,
-                'pages': (total + per_page - 1) // per_page if total > 0 else 0
-            }
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error get attendance: {str(e)}")
+    except ValueError as e:
+        logger.error(f"Error get attendance - ValueError: {str(e)}")
         return jsonify({
             'success': False,
-            'message': f'Terjadi kesalahan: {str(e)}'
+            'message': f'Format data tidak valid: {str(e)}'
+        }), 400
+    except (OperationalError, pymysql.err.OperationalError) as e:
+        # Khusus error enkripsi tabel, jangan matikan UI dengan 500.
+        # Kembalikan data kosong namun tetap informasikan masalah database.
+        if is_encryption_error(e):
+            logger.error(f"Error get attendance - Database encryption error: {str(e)}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': 'Data attendance tidak dapat dibaca karena tabel di database terenkripsi dan gagal didekripsi di environment ini. Silakan periksa konfigurasi encryption/keyring di MySQL dev.',
+                'data': {
+                    'items': [],
+                    'total': 0,
+                    'page': page,
+                    'per_page': per_page,
+                    'pages': 0
+                }
+            }), 200
+        # Error database lain tetap dianggap fatal
+        logger.error(f"Error get attendance - Database error: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Terjadi kesalahan database: {str(e)}'
+        }), 500
+    except Exception as e:
+        error_msg = str(e)
+        # Cek jika error terkait enkripsi tabel (fallback)
+        if is_encryption_error(e):
+            logger.error(f"Error get attendance - Database encryption error: {error_msg}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': 'Terjadi kesalahan pada database. Tabel terenkripsi tetapi tidak dapat didekripsi. Silakan hubungi administrator database.'
+            }), 500
+        logger.error(f"Error get attendance: {error_msg}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Terjadi kesalahan: {error_msg}'
         }), 500
 
 @attendance_bp.route('/all', methods=['GET'])
@@ -409,8 +532,32 @@ def get_today_status():
             'data': status
         }), 200
         
+    except ValueError as e:
+        if str(e) == "DATABASE_ENCRYPTION_ERROR":
+            logger.error(f"Error get today status - Database encryption error", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': 'Terjadi kesalahan pada database. Tabel terenkripsi tetapi tidak dapat didekripsi. Silakan hubungi administrator database.'
+            }), 500
+        logger.error(f"Error get today status - ValueError: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Format data tidak valid: {str(e)}'
+        }), 400
+    except (OperationalError, pymysql.err.OperationalError) as e:
+        if is_encryption_error(e):
+            logger.error(f"Error get today status - Database encryption error: {str(e)}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': 'Terjadi kesalahan pada database. Tabel terenkripsi tetapi tidak dapat didekripsi. Silakan hubungi administrator database.'
+            }), 500
+        logger.error(f"Error get today status - Database error: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Terjadi kesalahan database: {str(e)}'
+        }), 500
     except Exception as e:
-        logger.error(f"Error get today status: {str(e)}")
+        logger.error(f"Error get today status: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'message': f'Terjadi kesalahan: {str(e)}'
@@ -453,15 +600,81 @@ def get_dashboard():
             # Default to current user
             user_id_int = get_jwt_identity()
         
-        # Get dashboard stats
-        stats = attendance_service.get_dashboard_stats(
-            user_id=user_id_int,
-            start_date=start_date_obj,
-            end_date=end_date_obj
-        )
+        # Get dashboard stats dengan error handling
+        try:
+            stats = attendance_service.get_dashboard_stats(
+                user_id=user_id_int,
+                start_date=start_date_obj,
+                end_date=end_date_obj
+            )
+            if not stats:
+                stats = {
+                    'period': {
+                        'start_date': start_date_obj.isoformat() if start_date_obj else date.today().replace(day=1).isoformat(),
+                        'end_date': end_date_obj.isoformat() if end_date_obj else date.today().isoformat(),
+                        'working_days': 0
+                    },
+                    'attendance': {
+                        'total_days': 0,
+                        'present_days': 0,
+                        'late_days': 0,
+                        'absent_days': 0,
+                        'half_day_days': 0,
+                        'attendance_rate': 0
+                    },
+                    'work_hours': {
+                        'total_work_hours': 0,
+                        'total_overtime_hours': 0,
+                        'average_daily_hours': 0
+                    }
+                }
+        except Exception as e:
+            logger.error(f"Error getting dashboard stats: {str(e)}", exc_info=True)
+            stats = {
+                'period': {
+                    'start_date': start_date_obj.isoformat() if start_date_obj else date.today().replace(day=1).isoformat(),
+                    'end_date': end_date_obj.isoformat() if end_date_obj else date.today().isoformat(),
+                    'working_days': 0
+                },
+                'attendance': {
+                    'total_days': 0,
+                    'present_days': 0,
+                    'late_days': 0,
+                    'absent_days': 0,
+                    'half_day_days': 0,
+                    'attendance_rate': 0
+                },
+                'work_hours': {
+                    'total_work_hours': 0,
+                    'total_overtime_hours': 0,
+                    'average_daily_hours': 0
+                }
+            }
         
-        # Get today status
-        today_status = attendance_service.get_today_status(user_id=user_id_int)
+        # Get today status dengan error handling
+        try:
+            today_status = attendance_service.get_today_status(user_id=user_id_int)
+            if not today_status:
+                today_status = {
+                    'user_id': user_id_int,
+                    'has_clocked_in': False,
+                    'has_clocked_out': False,
+                    'clock_in_time': None,
+                    'clock_out_time': None,
+                    'status': 'absent',
+                    'work_duration_hours': 0
+                }
+        except Exception as e:
+            logger.error(f"Error getting today status: {str(e)}", exc_info=True)
+            today_status = {
+                'user_id': user_id_int,
+                'has_clocked_in': False,
+                'has_clocked_out': False,
+                'clock_in_time': None,
+                'clock_out_time': None,
+                'status': 'absent',
+                'work_duration_hours': 0
+            }
         
         return jsonify({
             'success': True,
@@ -471,8 +684,32 @@ def get_dashboard():
             }
         }), 200
         
+    except ValueError as e:
+        if str(e) == "DATABASE_ENCRYPTION_ERROR":
+            logger.error(f"Error get dashboard - Database encryption error", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': 'Terjadi kesalahan pada database. Tabel terenkripsi tetapi tidak dapat didekripsi. Silakan hubungi administrator database.'
+            }), 500
+        logger.error(f"Error get dashboard - ValueError: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Format data tidak valid: {str(e)}'
+        }), 400
+    except (OperationalError, pymysql.err.OperationalError) as e:
+        if is_encryption_error(e):
+            logger.error(f"Error get dashboard - Database encryption error: {str(e)}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': 'Terjadi kesalahan pada database. Tabel terenkripsi tetapi tidak dapat didekripsi. Silakan hubungi administrator database.'
+            }), 500
+        logger.error(f"Error get dashboard - Database error: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Terjadi kesalahan database: {str(e)}'
+        }), 500
     except Exception as e:
-        logger.error(f"Error get dashboard: {str(e)}")
+        logger.error(f"Error get dashboard: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'message': f'Terjadi kesalahan: {str(e)}'
@@ -931,8 +1168,32 @@ def get_dashboard_stats():
             'data': stats
         }), 200
         
+    except ValueError as e:
+        if str(e) == "DATABASE_ENCRYPTION_ERROR":
+            logger.error(f"Error get dashboard stats - Database encryption error", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': 'Terjadi kesalahan pada database. Tabel terenkripsi tetapi tidak dapat didekripsi. Silakan hubungi administrator database.'
+            }), 500
+        logger.error(f"Error get dashboard stats - ValueError: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Format data tidak valid: {str(e)}'
+        }), 400
+    except (OperationalError, pymysql.err.OperationalError) as e:
+        if is_encryption_error(e):
+            logger.error(f"Error get dashboard stats - Database encryption error: {str(e)}", exc_info=True)
+            return jsonify({
+                'success': False,
+                'message': 'Terjadi kesalahan pada database. Tabel terenkripsi tetapi tidak dapat didekripsi. Silakan hubungi administrator database.'
+            }), 500
+        logger.error(f"Error get dashboard stats - Database error: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'message': f'Terjadi kesalahan database: {str(e)}'
+        }), 500
     except Exception as e:
-        logger.error(f"Error get dashboard stats: {str(e)}")
+        logger.error(f"Error get dashboard stats: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'message': f'Terjadi kesalahan: {str(e)}'
