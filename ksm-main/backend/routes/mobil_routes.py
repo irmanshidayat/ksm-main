@@ -8,7 +8,7 @@ API routes untuk mobil management system
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from services.mobil_service import MobilService
-from utils.response_standardizer import APIResponse
+from shared.utils.response_standardizer import APIResponse
 import logging
 from datetime import datetime, date
 from typing import Dict, Any

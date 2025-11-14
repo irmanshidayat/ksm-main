@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import datetime, timedelta
 from config.database import db
-from models.knowledge_base import TelegramSettings
+from models import TelegramSettings
 import logging
 import json
 

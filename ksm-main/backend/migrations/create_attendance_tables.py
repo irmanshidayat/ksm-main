@@ -15,10 +15,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config.database import db, init_database
 from flask import Flask
-from models.attendance_models import (
+from models import (
     AttendanceRecord, AttendanceLeave, OvertimeRequest, AttendanceSettings
 )
-from models.knowledge_base import User
+from models import User
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

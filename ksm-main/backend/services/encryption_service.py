@@ -120,7 +120,7 @@ class KeyManagementService:
             )
             
             # Create key record
-            from models.role_management import EncryptionKey
+            from models import EncryptionKey
             key_record = EncryptionKey(
                 key_id=f"dept_{department_id}_v1",
                 department_id=department_id,
@@ -131,7 +131,7 @@ class KeyManagementService:
             )
             
             # Save to database
-            from models.role_management import db
+            from config.database import db
             db.session.add(key_record)
             db.session.commit()
             
@@ -154,7 +154,8 @@ class KeyManagementService:
     def rotate_department_key(self, department_id: int, reason: str = 'scheduled') -> dict:
         """Rotate encryption key untuk department"""
         try:
-            from models.role_management import EncryptionKey, KeyRotationLog, db
+            from models import EncryptionKey, KeyRotationLog
+            from config.database import db
             
             # Get current active key
             current_key = EncryptionKey.query.filter_by(
@@ -230,7 +231,8 @@ class KeyManagementService:
     def _re_encrypt_department_data(self, department_id: int, old_key_record, new_key_record):
         """Re-encrypt existing data dengan key baru"""
         try:
-            from models.role_management import EncryptedData, db
+            from models import EncryptedData
+            from config.database import db
             
             # Get all encrypted data for department
             encrypted_data_list = EncryptedData.query.filter_by(
@@ -282,7 +284,7 @@ class KeyManagementService:
     def _count_affected_records(self, department_id: int) -> int:
         """Count affected records untuk department"""
         try:
-            from models.role_management import EncryptedData
+            from models import EncryptedData
             return EncryptedData.query.filter_by(department_id=department_id).count()
         except Exception as e:
             logger.error(f"❌ Error counting affected records: {str(e)}")
@@ -296,7 +298,8 @@ class KeyManagementService:
     def create_key_backup(self, key_id: str, backup_type: str = 'full') -> dict:
         """Create backup untuk encryption key"""
         try:
-            from models.role_management import EncryptionKey, KeyBackup, db
+            from models import EncryptionKey, KeyBackup
+            from config.database import db
             
             # Get key to backup
             key = EncryptionKey.query.filter_by(key_id=key_id).first()
@@ -357,7 +360,8 @@ class KeyManagementService:
     def verify_key_backup(self, backup_id: int) -> bool:
         """Verify backup integrity"""
         try:
-            from models.role_management import KeyBackup, db
+            from models import KeyBackup
+            from config.database import db
             
             backup = KeyBackup.query.get(backup_id)
             if not backup:
@@ -401,7 +405,8 @@ class KeyManagementService:
     def recover_key(self, backup_id: int, recovery_reason: str) -> dict:
         """Recover key dari backup"""
         try:
-            from models.role_management import KeyBackup, EncryptionKey, KeyRecoveryLog, db
+            from models import KeyBackup, EncryptionKey, KeyRecoveryLog
+            from config.database import db
             
             backup = KeyBackup.query.get(backup_id)
             if not backup:
@@ -467,7 +472,8 @@ class KeyManagementService:
     def get_key_rotation_schedule(self, department_id: int) -> dict:
         """Get key rotation schedule untuk department"""
         try:
-            from models.role_management import EncryptionKey, Department
+            from models import EncryptionKey
+            from models import Department
             
             # Get department
             department = Department.query.get(department_id)
@@ -515,7 +521,8 @@ class DataEncryptionService:
     def encrypt_department_data(self, data: str, department_id: int) -> dict:
         """Encrypt data untuk department"""
         try:
-            from models.role_management import EncryptionKey, EncryptedData, db
+            from models import EncryptionKey, EncryptedData
+            from config.database import db
             
             # Get department key
             key_record = EncryptionKey.query.filter_by(
@@ -558,7 +565,8 @@ class DataEncryptionService:
     def decrypt_department_data(self, encrypted_data_id: int) -> str:
         """Decrypt data untuk department"""
         try:
-            from models.role_management import EncryptedData, EncryptionKey, db
+            from models import EncryptedData, EncryptionKey
+            from config.database import db
             
             # Get encrypted data
             encrypted_data = EncryptedData.query.get(encrypted_data_id)

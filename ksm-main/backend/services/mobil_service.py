@@ -10,7 +10,7 @@ from sqlalchemy import and_, or_, func
 from config.database import db
 from models.mobil_models import Mobil, MobilRequest, WaitingList, MobilBackup, MobilUsageLog
 from models.mobil_models import MobilStatus, RequestStatus, RecurringPattern, WaitingListStatus
-from models.knowledge_base import User
+from models import User
 from datetime import datetime, date, timedelta
 import logging
 from typing import List, Dict, Any, Optional

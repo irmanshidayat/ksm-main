@@ -22,10 +22,10 @@ except ImportError:
     sys.path.insert(0, backend_dir)
     from app import app
 from config.database import db
-from models.knowledge_base import User
-from models.role_management import Role, UserRole
+from models import User
+from models import Role, UserRole
 from models.menu_models import Menu, MenuPermission
-from services.permission_service import permission_service
+from domains.role.services.permission_service import permission_service
 import logging
 
 # Setup logging

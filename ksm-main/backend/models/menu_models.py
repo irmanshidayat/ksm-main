@@ -74,8 +74,8 @@ class Menu(db.Model):
     @classmethod
     def get_user_accessible_menus(cls, user_id):
         """Get menus accessible by specific user based on their roles"""
-        from models.knowledge_base import User
-        from models.role_management import UserRole
+        from models import User
+        from models import UserRole
         
         # Get user roles
         user_roles = db.session.query(UserRole.role_id).filter_by(user_id=user_id).all()

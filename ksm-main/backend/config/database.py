@@ -161,19 +161,14 @@ def init_database(app):
     
     # Import models setelah db diinisialisasi untuk menghindari circular import
     with app.app_context():
-        from models.remind_exp_docs import RemindExpDocs
-        from models.knowledge_base import (
-            KnowledgeCategory, KnowledgeTag, KnowledgeBaseFile, 
-            FileVersion, UserFileAccess, User, TelegramSettings, 
-            BotStatusHistory, file_tags
-        )
+        # RemindExpDocs sudah dipindah ke domains/task/models
+        # Tidak perlu diimport lagi di sini
+        # Knowledge models sudah diimport di models_init.py, tidak perlu diimport lagi di sini
         from models.notion_database import NotionDatabase
         from models.property_mapping import PropertyMapping
         from models.mobil_models import MobilRequest, WaitingList, Mobil, MobilUsageLog
-        from models.request_pembelian_models import (
-            Vendor, VendorCategory, VendorPenawaran, VendorPenawaranFile,
-            VendorAnalysis, VendorTemplate, VendorNotification
-        )
+        # Request pembelian models sudah dipindah ke domains/inventory/models
+        # Tidak perlu diimport lagi di sini
         from models.vendor_order_models import VendorOrder
     
     return db

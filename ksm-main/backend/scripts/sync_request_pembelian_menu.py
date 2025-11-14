@@ -21,7 +21,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app import app
 from config.database import db
 from models.menu_models import Menu, MenuPermission
-from models.role_management import Role
+from models import Role
 
 
 # Definisi menu Request Pembelian dan submenu-nya
