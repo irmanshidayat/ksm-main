@@ -75,8 +75,8 @@ def init_models():
         BudgetTracking, BudgetTransaction, AnalysisConfig, RequestTimelineConfig
     )
     
-    # Import mobil models
-    from models.mobil_models import (
+    # Import mobil models dari domain
+    from domains.mobil.models.mobil_models import (
         Mobil, MobilRequest, WaitingList, MobilBackup, MobilUsageLog
     )
     

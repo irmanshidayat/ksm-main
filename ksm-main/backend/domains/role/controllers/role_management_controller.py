@@ -17,7 +17,7 @@ from domains.role.models.role_models import (
 )
 from domains.role.services.permission_service import permission_service, PermissionService
 from domains.role.services.workflow_service import workflow_service
-from services.audit_trail_service import audit_service
+from shared.services.audit_trail_service import audit_service
 from shared.utils.response_standardizer import APIResponse
 
 logger = logging.getLogger(__name__)

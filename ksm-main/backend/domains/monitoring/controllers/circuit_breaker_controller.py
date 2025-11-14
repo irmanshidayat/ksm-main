@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Circuit Breaker Routes untuk KSM-Main
+Circuit Breaker Controller untuk Monitoring Domain
 Monitoring dan management endpoints untuk circuit breakers
 """
 
 from flask import Blueprint, jsonify, request
-from services.circuit_breaker import circuit_breaker_manager, get_agent_ai_circuit_breaker
+from shared.services.circuit_breaker import circuit_breaker_manager, get_agent_ai_circuit_breaker
 from services.agent_ai_client import get_circuit_breaker_stats, reset_circuit_breaker
 import logging
 
@@ -154,3 +154,4 @@ def reset_specific_circuit_breaker(circuit_name):
             'error': f'Failed to reset circuit breaker {circuit_name}',
             'message': str(e)
         }), 500
+

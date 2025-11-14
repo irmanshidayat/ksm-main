@@ -122,11 +122,18 @@ from .notion_database import NotionDatabase
 
 from .property_mapping import PropertyMapping
 
-from .mobil_models import (
+# Mobil models sudah dipindah ke domains/mobil/models
+# Import dari domain untuk backward compatibility
+from domains.mobil.models import (
+    Mobil,
     MobilRequest,
     WaitingList,
-    Mobil,
-    MobilUsageLog
+    MobilBackup,
+    MobilUsageLog,
+    MobilStatus,
+    RequestStatus,
+    RecurringPattern,
+    WaitingListStatus
 )
 
 from .vendor_order_models import VendorOrder
@@ -219,9 +226,15 @@ __all__ = [
     # Other models
     'NotionDatabase',
     'PropertyMapping',
+    # Mobil models
+    'Mobil',
     'MobilRequest',
     'WaitingList',
-    'Mobil',
+    'MobilBackup',
     'MobilUsageLog',
+    'MobilStatus',
+    'RequestStatus',
+    'RecurringPattern',
+    'WaitingListStatus',
     'VendorOrder'
 ]

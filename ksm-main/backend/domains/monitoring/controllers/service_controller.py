@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Service Routes untuk KSM-Main Backend
+Service Controller untuk Monitoring Domain
 Routes untuk service management dan monitoring
 """
 
@@ -15,9 +15,9 @@ from typing import Dict, Any
 logger = logging.getLogger(__name__)
 
 # Create blueprint
-service_routes_bp = Blueprint('service_routes', __name__, url_prefix='/api/services')
+service_bp = Blueprint('service', __name__, url_prefix='/api/services')
 
-@service_routes_bp.route('/status', methods=['GET'])
+@service_bp.route('/status', methods=['GET'])
 def get_service_status():
     """Get status of all services"""
     try:
@@ -65,9 +65,7 @@ def get_service_status():
             'status_code': 500
         }), 500
 
-# Health check endpoint dihapus - sekarang menggunakan unified_health_controller
-
-@service_routes_bp.route('/agent-ai/status', methods=['GET'])
+@service_bp.route('/agent-ai/status', methods=['GET'])
 def agent_ai_status():
     """Check Agent AI integration status"""
     try:
@@ -119,7 +117,7 @@ def agent_ai_status():
             'status_code': 500
         }), 500
 
-@service_routes_bp.route('/agent-ai/forward', methods=['POST'])
+@service_bp.route('/agent-ai/forward', methods=['POST'])
 def forward_to_agent_ai():
     """Forward request to Agent AI - OPTIMIZED for AI response generation only"""
     try:
@@ -173,7 +171,7 @@ def forward_to_agent_ai():
             'status_code': 500
         }), 500
 
-@service_routes_bp.route('/config', methods=['GET'])
+@service_bp.route('/config', methods=['GET'])
 def get_service_config():
     """Get service configuration"""
     try:
@@ -209,7 +207,7 @@ def get_service_config():
         }), 500
 
 # Error handlers
-@service_routes_bp.errorhandler(404)
+@service_bp.errorhandler(404)
 def not_found(error):
     return jsonify({
         'success': False,
@@ -217,10 +215,11 @@ def not_found(error):
         'status_code': 404
     }), 404
 
-@service_routes_bp.errorhandler(500)
+@service_bp.errorhandler(500)
 def internal_error(error):
     return jsonify({
         'success': False,
         'message': 'Internal service error',
         'status_code': 500
     }), 500
+

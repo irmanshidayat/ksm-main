@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from app import create_app
 from domains.role.services.permission_service import permission_service
 from domains.role.services.workflow_service import workflow_service
-from services.audit_trail_service import audit_service
+from shared.services.audit_trail_service import audit_service
 import logging
 
 # Setup logging

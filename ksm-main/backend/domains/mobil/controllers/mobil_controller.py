@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Mobil Routes untuk KSM Main Backend
+Mobil Controller untuk KSM Main Backend
 API routes untuk mobil management system
 """
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from services.mobil_service import MobilService
+from domains.mobil.services.mobil_service import MobilService
+from domains.mobil.models.mobil_models import (
+    MobilRequest, RequestStatus, WaitingList, WaitingListStatus,
+    Mobil, MobilStatus
+)
 from shared.utils.response_standardizer import APIResponse
+from config.database import db
+from sqlalchemy import and_, or_
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Dict, Any
 
 # Create blueprint
@@ -103,7 +109,6 @@ def get_calendar():
         view = request.args.get('view', 'month')
         
         # Parse month and year parameters
-        from datetime import datetime
         now = datetime.now()
         
         # If year is provided, construct month string
@@ -359,7 +364,6 @@ def check_availability():
         # Get conflicting reservations if not available
         conflicting_reservations = []
         if not is_available:
-            from models.mobil_models import MobilRequest, RequestStatus
             conflicting_requests = MobilRequest.query.filter(
                 and_(
                     MobilRequest.mobil_id == mobil_id,
@@ -427,8 +431,6 @@ def get_conflicts():
 def debug_requests():
     """Debug endpoint to see all requests"""
     try:
-        from models.mobil_models import MobilRequest, RequestStatus
-        
         # Get all active requests
         requests = MobilRequest.query.filter_by(status=RequestStatus.ACTIVE).all()
         
@@ -460,10 +462,6 @@ def debug_requests():
 def debug_calendar():
     """Debug endpoint to see calendar data and compare with requests"""
     try:
-        from models.mobil_models import MobilRequest, RequestStatus, Mobil, MobilStatus
-        from datetime import datetime, date, timedelta
-        from sqlalchemy import and_, or_
-        
         month = request.args.get('month', datetime.now().strftime('%Y-%m'))
         mobil_id = request.args.get('mobil_id', type=int)
         
@@ -607,9 +605,6 @@ def get_waiting_list():
         user_id = get_jwt_identity()
         
         # Get waiting list from service
-        from models.mobil_models import WaitingList, WaitingListStatus
-        from config.database import db
-        
         waiting_items = db.session.query(WaitingList).filter(
             WaitingList.user_id == user_id,
             WaitingList.status == WaitingListStatus.WAITING
@@ -640,9 +635,6 @@ def remove_from_waiting_list(waiting_id):
     try:
         user_id = get_jwt_identity()
         
-        from models.mobil_models import WaitingList
-        from config.database import db
-        
         waiting_item = db.session.query(WaitingList).filter(
             WaitingList.id == waiting_id,
             WaitingList.user_id == user_id
@@ -661,4 +653,3 @@ def remove_from_waiting_list(waiting_id):
         logger.error(f"Error removing from waiting list: {e}")
         return APIResponse.error(f"Failed to remove from waiting list: {str(e)}")
 
-# Health check endpoint dihapus - sekarang menggunakan unified_health_controller

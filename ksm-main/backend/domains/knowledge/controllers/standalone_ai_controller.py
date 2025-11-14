@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Standalone AI Routes untuk KSM Main Backend
+Standalone AI Controller untuk Knowledge Domain
 Routes untuk fitur AI standalone dan smart routing
 """
 
 from flask import Blueprint, request, jsonify
 import logging
 from typing import Dict, Any
-import base64
 import sys
 import os
 
@@ -23,7 +22,7 @@ def safe_import_service(service_name, function_name):
     except ImportError:
         # Fallback untuk relative import
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        parent_dir = os.path.dirname(current_dir)
+        parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
         if parent_dir not in sys.path:
             sys.path.append(parent_dir)
         try:
@@ -372,3 +371,4 @@ def clear_routing_cache():
             'status': 'error',
             'message': f'Terjadi kesalahan: {str(e)}'
         }), 500
+

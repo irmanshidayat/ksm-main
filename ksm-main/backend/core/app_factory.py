@@ -37,20 +37,22 @@ from domains.task.routes import register_task_routes
 from domains.role.routes import register_role_routes
 from domains.monitoring.routes import register_monitoring_routes
 from domains.integration.routes import register_integration_routes
+from domains.mobil.routes import register_mobil_routes
 
 # Import other routes (legacy routes that haven't been migrated yet)
-from routes.standalone_ai_routes import standalone_ai_bp
-from routes.service_routes import service_routes_bp
-from routes.debug_routes import debug_bp
+from shared.routes.debug_routes import debug_bp
+from shared.routes.compatibility_routes import compatibility_bp
 # notification_bp removed - now handled by domains.notification.routes
-from routes.compatibility_routes import compatibility_bp
+# service_routes_bp removed - now handled by domains.monitoring.routes (registered above)
+# circuit_breaker_bp removed - now handled by domains.monitoring.routes (registered above)
+# standalone_ai_bp removed - now handled by domains.knowledge.routes (registered above)
 from domains.approval.routes import register_approval_routes
-from routes.mobil_routes import mobil_bp
+# mobil_bp removed - now handled by domains.mobil.routes (registered below)
 # user_bp now registered via domains.auth.routes
 
 # Import services
 from domains.monitoring.services.unified_monitoring_service import get_monitoring_service
-from services.intelligent_cache_service import get_intelligent_cache_service
+from shared.services.intelligent_cache_service import get_intelligent_cache_service
 from services.advanced_context_builder import get_advanced_context_builder
 
 # Import middlewares
@@ -95,7 +97,7 @@ def create_app():
         with app.app_context():
             from domains.role.services.permission_service import permission_service
             from domains.role.services.workflow_service import workflow_service
-            from services.audit_trail_service import audit_service
+            from shared.services.audit_trail_service import audit_service
             
             logger.info("[INIT] Initializing role management services...")
             permission_service.initialize_default_permissions()
@@ -157,14 +159,18 @@ def create_app():
     # Register approval routes
     register_approval_routes(app)
     
+    # Register mobil routes
+    register_mobil_routes(app)
+    
     # Register legacy routes (to be migrated later)
-    app.register_blueprint(standalone_ai_bp)
-    app.register_blueprint(service_routes_bp)
     app.register_blueprint(debug_bp)
     # notification_bp removed - now handled by domains.notification.routes (registered above)
     app.register_blueprint(compatibility_bp)
+    # service_routes_bp removed - now handled by domains.monitoring.routes (registered above)
+    # circuit_breaker_bp removed - now handled by domains.monitoring.routes (registered above)
+    # standalone_ai_bp removed - now handled by domains.knowledge.routes (registered above)
     # gmail_bp removed - now handled by domains.auth.routes (registered above)
-    app.register_blueprint(mobil_bp)
+    # mobil_bp removed - now handled by domains.mobil.routes (registered above)
     # user_bp now registered via register_auth_routes above
     
     # Setup rate limiter
