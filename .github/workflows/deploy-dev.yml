@@ -1,0 +1,172 @@
+# =============================================================================
+# GitHub Actions - Deployment Development
+# =============================================================================
+# 
+# Workflow untuk deployment otomatis ke development server
+# Trigger: Push ke branch 'dev'
+# 
+# Requirements:
+# - GitHub Secrets:
+#   - SSH_HOST_DEV: IP/hostname server development
+#   - SSH_USER_DEV: Username SSH untuk development
+#   - SSH_KEY_DEV: Private SSH key untuk development
+#   - DEPLOY_PATH_DEV: Path di server (default: /opt/ksm-main-dev)
+# 
+# Note: VPS menggunakan port SSH 22 (port default)
+# =============================================================================
+
+name: Deploy Development
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch: # Manual trigger
+
+env:
+  COMPOSE_FILE: docker-compose.dev.yml
+  DEPLOY_ENV: development
+
+jobs:
+  deploy:
+    name: Deploy to Development Server
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY_DEV }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H -p 22 ${{ secrets.SSH_HOST_DEV }} >> ~/.ssh/known_hosts
+
+      - name: Create deployment directory
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} \
+            "mkdir -p $DEPLOY_PATH"
+
+      - name: Copy docker-compose file
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}
+        run: |
+          scp -P 22 ksm-main/docker-compose.dev.yml \
+            ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }}:$DEPLOY_PATH/docker-compose.yml
+
+      - name: Copy infrastructure files
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} \
+            "mkdir -p $DEPLOY_PATH/infrastructure"
+          
+          scp -P 22 -r ksm-main/infrastructure/* \
+            ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }}:$DEPLOY_PATH/infrastructure/
+
+      - name: Copy backend files
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} \
+            "mkdir -p $DEPLOY_PATH/backend"
+          
+          rsync -avz -e "ssh -p 22" --exclude='__pycache__' --exclude='*.pyc' --exclude='.venv' --exclude='ksm_venv' \
+            ksm-main/backend/ \
+            ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }}:$DEPLOY_PATH/backend/
+
+      - name: Copy frontend-vite files
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} \
+            "mkdir -p $DEPLOY_PATH/frontend-vite"
+          
+          rsync -avz -e "ssh -p 22" --exclude='node_modules' --exclude='dist' --exclude='.next' \
+            ksm-main/frontend-vite/ \
+            ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }}:$DEPLOY_PATH/frontend-vite/
+
+      - name: Copy Agent AI files
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} \
+            "mkdir -p $DEPLOY_PATH/../Agent AI"
+          
+          rsync -avz -e "ssh -p 22" --exclude='__pycache__' --exclude='*.pyc' --exclude='.venv' --exclude='agent_venv' \
+            "Agent AI/" \
+            ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }}:$DEPLOY_PATH/../Agent\ AI/
+
+      - name: Create logs directory
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} \
+            "mkdir -p $DEPLOY_PATH/logs/{mysql-dev,nginx-dev,redis-dev}"
+
+      - name: Deploy with Docker Compose
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} << EOF
+            cd $DEPLOY_PATH
+            
+            # Stop existing containers
+            docker-compose -f docker-compose.yml down || true
+            
+            # Build and start services
+            docker-compose -f docker-compose.yml build --no-cache
+            
+            # Start services
+            docker-compose -f docker-compose.yml up -d
+            
+            # Wait for services to be healthy
+            echo "Waiting for services to start..."
+            sleep 30
+            
+            # Check service status
+            docker-compose -f docker-compose.yml ps
+            
+            # Health check
+            echo "Checking service health..."
+            docker-compose -f docker-compose.yml ps --filter "health=healthy" || true
+          EOF
+
+      - name: Verify deployment
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} << EOF
+            cd $DEPLOY_PATH
+            
+            # Check if containers are running
+            if docker-compose -f docker-compose.yml ps | grep -q "Up"; then
+              echo "✅ Deployment successful! Services are running."
+              docker-compose -f docker-compose.yml ps
+            else
+              echo "❌ Deployment failed! Some services are not running."
+              docker-compose -f docker-compose.yml ps
+              docker-compose -f docker-compose.yml logs --tail=50
+              exit 1
+            fi
+          EOF
+
+      - name: Cleanup old images
+        if: success()
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} << EOF
+            # Remove dangling images
+            docker image prune -f
+            
+            # Remove unused images (older than 7 days)
+            docker image prune -a -f --filter "until=168h" || true
+          EOF
+
