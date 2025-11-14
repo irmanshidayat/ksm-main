@@ -14,25 +14,24 @@ ENV VITE_APP_ENVIRONMENT=$VITE_APP_ENVIRONMENT
 
 # Copy package files
 COPY package.json ./
-COPY package-lock.json* ./
 
 # Clear npm cache untuk menghindari masalah
 RUN npm cache clean --force || true
 
 # Install ALL dependencies (termasuk devDependencies untuk build)
+# Skip package-lock.json untuk menghindari npm bug "Exit handler never called"
 # Gunakan npm install dengan --legacy-peer-deps untuk menghindari peer dependency issues
-# Jika package-lock.json ada tapi corrupt, npm install akan regenerate
-RUN if [ -f package-lock.json ]; then \
-      npm install --legacy-peer-deps --no-audit || \
-      (echo "⚠️  npm install failed, regenerating package-lock.json..." && \
-       rm -f package-lock.json && \
-       npm install --legacy-peer-deps --no-audit); \
-    else \
-      npm install --legacy-peer-deps --no-audit; \
-    fi
+RUN npm install --legacy-peer-deps --no-audit --no-package-lock || \
+    (echo "⚠️  First install attempt failed, retrying..." && \
+     npm cache clean --force && \
+     sleep 3 && \
+     npm install --legacy-peer-deps --no-audit --no-package-lock)
 
-# Verify vite is installed (vite harus ada di devDependencies)
-RUN npm list vite || (echo "⚠️  vite not found, installing..." && npm install vite@^5.0.8 --save-dev --legacy-peer-deps)
+# Verify node_modules exists and vite is available
+RUN test -d node_modules && test -f node_modules/.bin/vite || \
+    (echo "❌ vite not found, checking node_modules..." && \
+     ls -la node_modules/.bin/ 2>/dev/null || echo "node_modules/.bin not found" && \
+     exit 1)
 
 # Copy source code
 COPY . .
