@@ -19,8 +19,6 @@
 #
 # =============================================================================
 
-version: '3.8'
-
 services:
   # MySQL Database untuk Production
   # Port mapping: 3308 (host) -> 3306 (container)
@@ -80,10 +78,10 @@ services:
     environment:
       - FLASK_ENV=production
       - FLASK_DEBUG=0
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - KSM_API_KEY=${KSM_API_KEY}
-      - NGROK_AUTH_TOKEN=${NGROK_AUTH_TOKEN}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - KSM_API_KEY=${KSM_API_KEY:-}
+      - NGROK_AUTH_TOKEN=${NGROK_AUTH_TOKEN:-}
       - DB_HOST=mysql-prod
       - DB_PORT=3306
       - DB_NAME=KSM_main
@@ -128,10 +126,10 @@ services:
       # Default password untuk Docker: admin123 (jika DB_PASSWORD tidak ter-set di .env)
       - DB_PASSWORD=${DB_PASSWORD:-admin123}
       - DATABASE_URL=mysql+pymysql://${DB_USER:-root}:${DB_PASSWORD:-admin123}@mysql-prod:3306/KSM_main
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - KSM_API_KEY=${KSM_API_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-default-jwt-secret-key-change-in-production}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - KSM_API_KEY=${KSM_API_KEY:-}
       - REDIS_URL=redis://redis-prod:6379/0
       # Jika menggunakan Redis password, ubah menjadi: redis://:${REDIS_PASSWORD}@redis-prod:6379/0
       - AGENT_AI_URL=http://agent-ai-prod:5000
