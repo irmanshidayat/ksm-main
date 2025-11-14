@@ -130,7 +130,325 @@ curl http://localhost:5002/health    # dev: 5002, prod: 5001
 curl http://localhost:3006           # dev: 3006, prod: 3005
 ```
 
-#### Cara 3: Manual Copy Files (Tanpa Script)
+#### Cara 3: Deployment dengan Script Otomatis (RECOMMENDED)
+
+Script otomatis untuk setup dan deployment update sudah tersedia di folder `scripts/`:
+
+**A. Dari Windows PowerShell (Paling Mudah):**
+
+```powershell
+# Dari root project directory
+cd "C:\Irman\Coding KSM Main\KSM Grup - dev"
+
+# Setup awal untuk development
+.\scripts\deploy-auto.ps1 -Environment dev -Action setup
+
+# Setup awal untuk production
+.\scripts\deploy-auto.ps1 -Environment prod -Action setup
+
+# Deployment update untuk development
+.\scripts\deploy-auto.ps1 -Environment dev -Action update
+
+# Deployment update untuk production
+.\scripts\deploy-auto.ps1 -Environment prod -Action update
+```
+
+**B. Dari Server Linux (SSH Manual):**
+
+```bash
+# SSH ke server
+ssh root@72.61.142.109
+
+# Clone repository (jika belum ada)
+cd /opt
+git clone https://github.com/irmanshidayat/ksm-main.git ksm-main-dev
+cd ksm-main-dev
+git checkout dev
+
+# Buat script executable
+chmod +x scripts/deploy-setup.sh
+chmod +x scripts/deploy-update.sh
+
+# Jalankan setup awal
+./scripts/deploy-setup.sh dev
+# atau untuk production
+./scripts/deploy-setup.sh prod
+
+# Deployment update
+./scripts/deploy-update.sh dev
+# atau untuk production
+./scripts/deploy-update.sh prod
+```
+
+**Keuntungan Menggunakan Script:**
+- ✅ Otomatis - semua langkah dijalankan secara otomatis
+- ✅ Error handling - script akan berhenti jika ada error
+- ✅ Verifikasi - memastikan struktur direktori benar sebelum build
+- ✅ Health check - otomatis test health endpoints setelah deployment
+- ✅ Informasi jelas - output yang mudah dibaca dengan warna
+- ✅ Cross-platform - bisa dijalankan dari Windows (PowerShell) atau Linux (Bash)
+
+#### Cara 4: Deployment dengan Git Pull (Manual)
+
+Cara ini lebih efisien karena hanya download perubahan saja. Setup sekali, kemudian cukup `git pull` setiap update.
+
+**Setup Awal (Sekali Saja):**
+
+```bash
+# SSH ke server
+ssh root@72.61.142.109
+
+# Install Git (jika belum ada)
+apt update
+apt install -y git
+
+# Clone repository ke directory deployment
+cd /opt
+
+# Hapus folder lama jika sudah ada (backup dulu jika perlu)
+rm -rf ksm-main-dev
+
+# Clone repository ke folder sementara
+git clone https://github.com/irmanshidayat/ksm-main.git ksm-main-dev-temp
+cd ksm-main-dev-temp
+git checkout dev
+
+# Setup Git config (opsional)
+git config --global user.name "Server Deploy"
+git config --global user.email "deploy@ksm.local"
+
+# Buat directory deployment dan pindahkan semua isi repository ke sana
+mkdir -p /opt/ksm-main-dev
+
+# Pindahkan semua file dan folder (termasuk hidden files seperti .git)
+# Gunakan find untuk menghindari masalah dengan . dan ..
+find . -maxdepth 1 -not -name '.' -not -name '..' -exec mv {} /opt/ksm-main-dev/ \;
+
+# Atau alternatif: gunakan rsync untuk memindahkan semua file
+# rsync -av --exclude='.' --exclude='..' . /opt/ksm-main-dev/
+
+# Hapus folder temporary
+cd /opt
+rmdir ksm-main-dev-temp 2>/dev/null || rm -rf ksm-main-dev-temp
+
+# Masuk ke directory deployment
+cd /opt/ksm-main-dev
+
+# Verifikasi file docker-compose.dev.yml ada
+if [ ! -f "docker-compose.dev.yml" ]; then
+    echo "❌ ERROR: docker-compose.dev.yml tidak ditemukan!"
+    echo "Struktur direktori saat ini:"
+    ls -la
+    exit 1
+fi
+
+# Copy docker-compose file ke root (untuk kemudahan)
+cp docker-compose.dev.yml docker-compose.yml
+echo "✅ docker-compose.yml sudah dibuat dari docker-compose.dev.yml"
+
+# Copy Agent AI jika ada (dari parent directory)
+if [ -d "/opt/Agent AI" ]; then
+    echo "Agent AI folder sudah ada di /opt/"
+else
+    # Jika Agent AI ada di repository, copy ke /opt
+    if [ -d "../Agent AI" ]; then
+        cp -r "../Agent AI" /opt/
+    fi
+fi
+
+# Verifikasi struktur direktori
+echo "Verifikasi struktur direktori:"
+ls -la
+echo ""
+echo "Harus ada: backend, frontend-vite, infrastructure, docker-compose.yml, docker-compose.dev.yml"
+```
+
+**Alternatif Setup (Clone Langsung - RECOMMENDED):**
+
+Cara ini lebih sederhana dan direkomendasikan. Clone langsung ke target directory:
+
+```bash
+# SSH ke server
+ssh root@72.61.142.109
+
+# Install Git (jika belum ada)
+apt update
+apt install -y git
+
+# Clone repository langsung ke target directory
+cd /opt
+rm -rf ksm-main-dev
+git clone https://github.com/irmanshidayat/ksm-main.git ksm-main-dev
+cd ksm-main-dev
+git checkout dev
+
+# Setup Git config (opsional)
+git config --global user.name "Server Deploy"
+git config --global user.email "deploy@ksm.local"
+
+# Verifikasi file docker-compose.dev.yml ada
+if [ ! -f "docker-compose.dev.yml" ]; then
+    echo "❌ ERROR: docker-compose.dev.yml tidak ditemukan!"
+    echo "Struktur direktori saat ini:"
+    ls -la
+    exit 1
+fi
+
+# Copy docker-compose file ke root
+cp docker-compose.dev.yml docker-compose.yml
+echo "✅ docker-compose.yml sudah dibuat"
+
+# Verifikasi struktur direktori
+echo ""
+echo "📁 Verifikasi struktur direktori:"
+ls -la | head -20
+echo ""
+echo "Harus ada: backend, frontend-vite, infrastructure, docker-compose.yml, docker-compose.dev.yml, .git"
+```
+
+**Catatan Penting:**
+- Dengan cara ini, struktur direktori sudah benar dari awal
+- Folder `.git` akan ada di `/opt/ksm-main-dev/.git` sehingga `git pull` bisa langsung digunakan
+- Tidak perlu memindahkan file karena sudah di tempat yang benar
+
+**PENTING - Perbaiki Struktur Direktori yang Salah:**
+
+Jika setelah clone struktur direktori menjadi `/opt/ksm-main-dev/ksm-main-dev/` (ada subdirectory), perbaiki dengan:
+
+```bash
+# Masuk ke directory deployment
+cd /opt/ksm-main-dev
+
+# Jika ada subdirectory ksm-main-dev, pindahkan semua isinya ke parent
+if [ -d "ksm-main-dev" ]; then
+    echo "⚠️  Memperbaiki struktur direktori yang salah..."
+    
+    # Masuk ke subdirectory
+    cd ksm-main-dev
+    
+    # Pindahkan semua file dan folder menggunakan find (lebih aman)
+    find . -maxdepth 1 -not -name '.' -not -name '..' -exec mv {} .. \;
+    
+    # Kembali ke parent directory
+    cd ..
+    
+    # Hapus subdirectory kosong
+    rmdir ksm-main-dev 2>/dev/null || rm -rf ksm-main-dev
+    
+    # Verifikasi struktur
+    echo "✅ Struktur direktori sudah diperbaiki"
+    echo "📁 Verifikasi struktur:"
+    ls -la | head -20
+    echo ""
+    echo "Harus ada: backend, frontend-vite, infrastructure, docker-compose.dev.yml, .git"
+    
+    # Verifikasi file penting ada
+    if [ ! -f "docker-compose.dev.yml" ]; then
+        echo "❌ ERROR: docker-compose.dev.yml masih tidak ditemukan!"
+        exit 1
+    fi
+    
+    # Copy docker-compose file jika belum ada
+    if [ ! -f "docker-compose.yml" ]; then
+        cp docker-compose.dev.yml docker-compose.yml
+        echo "✅ docker-compose.yml sudah dibuat"
+    fi
+fi
+```
+
+**Deployment Setiap Update:**
+
+```bash
+# SSH ke server
+ssh root@72.61.142.109
+
+# Masuk ke directory deployment
+cd /opt/ksm-main-dev
+
+# Pull latest changes dari repository
+git pull origin dev
+
+# Perbaiki struktur direktori jika ada subdirectory (lihat bagian "PENTING" di atas)
+# Ini penting jika struktur direktori menjadi salah setelah clone
+if [ -d "ksm-main-dev" ]; then
+    echo "⚠️  Memperbaiki struktur direktori yang salah..."
+    # Masuk ke subdirectory
+    cd ksm-main-dev
+    # Pindahkan semua file dan folder menggunakan find (lebih aman)
+    find . -maxdepth 1 -not -name '.' -not -name '..' -exec mv {} .. \;
+    # Kembali ke parent directory
+    cd ..
+    # Hapus subdirectory kosong
+    rmdir ksm-main-dev 2>/dev/null || rm -rf ksm-main-dev
+    echo "✅ Struktur direktori sudah diperbaiki"
+fi
+
+# Update docker-compose.yml dari docker-compose.dev.yml
+if [ -f "docker-compose.dev.yml" ]; then
+    cp docker-compose.dev.yml docker-compose.yml
+    echo "✅ docker-compose.yml sudah diupdate"
+fi
+
+# Verifikasi struktur direktori sebelum build
+echo ""
+echo "📁 Verifikasi struktur direktori:"
+ls -la | grep -E "(backend|frontend-vite|infrastructure|docker-compose)"
+echo ""
+
+# Pastikan semua folder yang diperlukan ada
+if [ ! -d "backend" ] || [ ! -d "frontend-vite" ] || [ ! -d "infrastructure" ]; then
+    echo "❌ ERROR: Folder backend, frontend-vite, atau infrastructure tidak ditemukan!"
+    echo "Pastikan struktur direktori benar sebelum melanjutkan."
+    exit 1
+fi
+
+# Stop container yang ada
+echo "🛑 Menghentikan container yang ada..."
+docker-compose -f docker-compose.yml down || true
+
+# Build Docker images
+echo "🔨 Building Docker images..."
+docker-compose -f docker-compose.yml build --no-cache
+
+# Start services
+echo "🚀 Starting services..."
+docker-compose -f docker-compose.yml up -d
+
+# Tunggu beberapa detik untuk services start
+echo "⏳ Menunggu services start (30 detik)..."
+sleep 30
+
+# Cek status
+echo ""
+echo "📊 Status container:"
+docker-compose -f docker-compose.yml ps
+
+# Test health endpoints
+echo ""
+echo "🏥 Testing health endpoints..."
+echo "Backend:"
+curl -s http://localhost:8002/api/health || echo "❌ Backend tidak merespon"
+echo ""
+echo "Agent AI:"
+curl -s http://localhost:5002/health || echo "❌ Agent AI tidak merespon"
+echo ""
+echo "Frontend:"
+curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" http://localhost:3006 || echo "❌ Frontend tidak merespon"
+```
+
+**Keuntungan Menggunakan Git Pull:**
+- ✅ Lebih cepat - hanya download perubahan
+- ✅ Otomatis - tidak perlu copy manual
+- ✅ Version control - bisa rollback jika perlu
+- ✅ Clean - tidak ada file cache yang tidak perlu
+- ✅ Mudah - cukup `git pull` saja
+
+**Catatan:**
+- Untuk production, clone ke `/opt/ksm-main-prod` dan checkout branch `main`
+- Pastikan file `.env` tidak di-commit, simpan terpisah di server
+- Jika repository private, setup SSH key atau gunakan Personal Access Token
+
+#### Cara 4: Manual Copy Files (Tanpa Script)
 
 Jika script tidak bisa digunakan, copy files secara manual:
 
@@ -316,6 +634,83 @@ Gunakan helper scripts untuk maintenance:
 3. **Check Docker logs**
    ```bash
    docker-compose -f docker-compose.yml logs [service-name]
+   ```
+
+### Docker Build Error: "unable to prepare context: path not found"
+
+Error ini terjadi ketika Docker tidak bisa menemukan folder `backend` atau `frontend-vite` di lokasi yang diharapkan oleh `docker-compose.yml`.
+
+**Gejala:**
+```
+unable to prepare context: path "/opt/ksm-main-dev/backend" not found
+unable to prepare context: path "/opt/ksm-main-dev/frontend-vite" not found
+```
+
+**Penyebab:**
+- Struktur direktori tidak sesuai dengan yang diharapkan docker-compose.yml
+- Folder `backend` dan `frontend-vite` ada di subdirectory (misalnya `/opt/ksm-main-dev/ksm-main-dev/`)
+- File-file belum di-copy ke root deployment directory
+
+**Solusi:**
+
+1. **Cek struktur direktori saat ini:**
+   ```bash
+   cd /opt/ksm-main-dev
+   ls -la
+   # Periksa apakah ada folder backend, frontend-vite di root
+   ```
+
+2. **Jika ada subdirectory, perbaiki struktur:**
+   ```bash
+   cd /opt/ksm-main-dev
+   
+   # Jika ada subdirectory ksm-main-dev, pindahkan isinya
+   if [ -d "ksm-main-dev" ]; then
+       echo "⚠️  Memperbaiki struktur direktori..."
+       # Masuk ke subdirectory
+       cd ksm-main-dev
+       # Pindahkan semua file dan folder menggunakan find (lebih aman)
+       find . -maxdepth 1 -not -name '.' -not -name '..' -exec mv {} .. \;
+       # Kembali ke parent directory
+       cd ..
+       # Hapus subdirectory kosong
+       rmdir ksm-main-dev 2>/dev/null || rm -rf ksm-main-dev
+       echo "✅ Struktur direktori sudah diperbaiki"
+   fi
+   
+   # Verifikasi file docker-compose.dev.yml ada
+   if [ ! -f "docker-compose.dev.yml" ]; then
+       echo "❌ ERROR: docker-compose.dev.yml tidak ditemukan!"
+       echo "Struktur direktori saat ini:"
+       ls -la
+       exit 1
+   fi
+   
+   # Copy docker-compose file jika belum ada
+   if [ ! -f "docker-compose.yml" ]; then
+       cp docker-compose.dev.yml docker-compose.yml
+       echo "✅ docker-compose.yml sudah dibuat"
+   fi
+   
+   # Verifikasi struktur
+   echo "📁 Verifikasi struktur direktori:"
+   ls -la | head -20
+   echo ""
+   echo "Harus ada: backend, frontend-vite, infrastructure, docker-compose.yml, docker-compose.dev.yml"
+   ```
+
+3. **Jika struktur sudah benar tapi masih error, cek docker-compose.yml:**
+   ```bash
+   cd /opt/ksm-main-dev
+   cat docker-compose.yml | grep -A 3 "context:"
+   # Pastikan context paths benar: ./backend dan ./frontend-vite
+   ```
+
+4. **Setelah perbaikan, rebuild:**
+   ```bash
+   docker-compose -f docker-compose.yml down || true
+   docker-compose -f docker-compose.yml build --no-cache
+   docker-compose -f docker-compose.yml up -d
    ```
 
 ### SSH Connection Issues
