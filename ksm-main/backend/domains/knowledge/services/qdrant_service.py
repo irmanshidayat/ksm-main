@@ -37,7 +37,10 @@ class QdrantService:
             return
             
         # Konfigurasi Qdrant
-        self.url = os.environ.get('QDRANT_URL', 'http://localhost:6333')
+        # Gunakan environment variable QDRANT_URL jika ada, jika tidak gunakan default
+        # Default untuk Docker: qdrant-dev:6333, untuk local: localhost:6333
+        default_url = 'http://qdrant-dev:6333' if os.environ.get('FLASK_ENV') == 'development' else 'http://localhost:6333'
+        self.url = os.environ.get('QDRANT_URL', default_url)
         self.api_key = os.environ.get('QDRANT_API_KEY', None)
         self.collection_prefix = os.environ.get('QDRANT_COLLECTION_PREFIX', 'KSM')
         # Vector size for OpenAI embeddings

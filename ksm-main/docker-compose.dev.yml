@@ -71,6 +71,28 @@ services:
     # Jika menggunakan Redis password, uncomment baris berikut:
     # command: redis-server /usr/local/etc/redis/redis.conf --requirepass ${REDIS_PASSWORD} --appendonly yes --logfile /var/log/redis/redis.log
 
+  # Qdrant Vector Database untuk Development
+  qdrant-dev:
+    image: qdrant/qdrant:latest
+    container_name: KSM-qdrant-dev
+    restart: always
+    ports:
+      - "6333:6333"  # REST API
+      - "6334:6334"  # gRPC
+    volumes:
+      - qdrant_dev_data:/qdrant/storage
+      - ./logs/qdrant-dev:/qdrant/logs
+    networks:
+      - KSM-dev-network
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+
   # Agent AI Service untuk Development
   agent-ai-dev:
     build:
@@ -136,6 +158,8 @@ services:
       - REDIS_URL=redis://redis-dev:6379/0
       # Jika menggunakan Redis password, ubah menjadi: redis://:${REDIS_PASSWORD}@redis-dev:6379/0
       - AGENT_AI_URL=http://agent-ai-dev:5000
+      - QDRANT_URL=http://qdrant-dev:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
       - LOG_LEVEL=DEBUG
       # Set encryption key secara eksplisit untuk konsistensi
       - EMAIL_DOMAIN_ENCRYPTION_KEY=nGLXDhCPmhCx5WugGHstyCkT7RY7P066rE_PnN5Hcqk=
@@ -145,6 +169,8 @@ services:
       mysql-dev:
         condition: service_healthy
       redis-dev:
+        condition: service_healthy
+      qdrant-dev:
         condition: service_healthy
       agent-ai-dev:
         condition: service_started
@@ -161,29 +187,30 @@ services:
       interval: 30s
 
   # KSM Main Frontend untuk Development (CRA)
-  ksm-frontend-dev:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.production
-      args:
-        - REACT_APP_API_URL=http://localhost:8002
-        - REACT_APP_ENVIRONMENT=development
-    container_name: KSM-frontend-dev
-    restart: always
-    environment:
-      - REACT_APP_API_URL=http://localhost:8002
-      - REACT_APP_ENVIRONMENT=development
-    ports:
-      - "3003:3000"
-    depends_on:
-      - ksm-backend-dev
-    networks:
-      - KSM-dev-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      timeout: 10s
-      retries: 5
-      interval: 30s
+  # DISABLED: Folder frontend tidak ada, hanya menggunakan frontend-vite
+  # ksm-frontend-dev:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile.production
+  #     args:
+  #       - REACT_APP_API_URL=http://localhost:8002
+  #       - REACT_APP_ENVIRONMENT=development
+  #   container_name: KSM-frontend-dev
+  #   restart: always
+  #   environment:
+  #     - REACT_APP_API_URL=http://localhost:8002
+  #     - REACT_APP_ENVIRONMENT=development
+  #   ports:
+  #     - "3003:3000"
+  #   depends_on:
+  #     - ksm-backend-dev
+  #   networks:
+  #     - KSM-dev-network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3000"]
+  #     timeout: 10s
+  #     retries: 5
+  #     interval: 30s
 
   # KSM Main Frontend Vite untuk Development
   ksm-frontend-vite-dev:
@@ -265,7 +292,7 @@ services:
     container_name: KSM-grafana-dev
     restart: always
     ports:
-      - "3004:3000"
+      - "3007:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
     volumes:
@@ -306,6 +333,7 @@ services:
 volumes:
   mysql_dev_data:
   redis_dev_data:
+  qdrant_dev_data:
   agent_ai_dev_logs:
   agent_ai_dev_data:
   KSM_backend_dev_logs:

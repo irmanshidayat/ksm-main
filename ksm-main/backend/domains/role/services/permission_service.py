@@ -578,6 +578,7 @@ class PermissionService:
             menus = Menu.query.filter_by(is_active=True).all()
             
             created_permissions = []
+            updated_permissions = []
             for menu in menus:
                 # Extract menu key from path
                 menu_key = menu.path.strip('/').split('/')[0]
@@ -601,6 +602,7 @@ class PermissionService:
                     existing_permission.can_delete = menu_permissions['delete']
                     existing_permission.is_active = True
                     existing_permission.granted_at = datetime.utcnow()
+                    updated_permissions.append(existing_permission)
                 else:
                     # Create new permission
                     permission = MenuPermission(
@@ -617,7 +619,15 @@ class PermissionService:
             
             db.session.commit()
             
-            logger.info(f"Created {len(created_permissions)} permissions for role {role.name}")
+            # Log dengan informasi yang lebih jelas
+            if len(created_permissions) > 0 or len(updated_permissions) > 0:
+                log_msg = f"Role {role.name}: Created {len(created_permissions)} new permissions"
+                if len(updated_permissions) > 0:
+                    log_msg += f", Updated {len(updated_permissions)} existing permissions"
+                logger.info(log_msg)
+            else:
+                logger.info(f"Role {role.name}: All permissions already exist and are up to date (0 new, 0 updated)")
+            
             return created_permissions
             
         except Exception as e:
@@ -929,7 +939,8 @@ class PermissionService:
             for role in created_roles:
                 try:
                     created_permissions = PermissionService.create_role_permission_template(role.id)
-                    logger.info(f"[SUCCESS] Created permissions for role: {role.name}")
+                    # Log message sudah ada di dalam create_role_permission_template
+                    # Tidak perlu log lagi di sini untuk menghindari duplicate
                 except Exception as perm_error:
                     logger.warning(f"[WARNING] Could not create permissions for role {role.name}: {perm_error}")
             
