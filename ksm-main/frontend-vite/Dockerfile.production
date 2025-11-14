@@ -13,10 +13,26 @@ ENV VITE_APP_API_URL=$VITE_APP_API_URL
 ENV VITE_APP_ENVIRONMENT=$VITE_APP_ENVIRONMENT
 
 # Copy package files
-COPY package*.json ./
+COPY package.json ./
+COPY package-lock.json* ./
+
+# Clear npm cache untuk menghindari masalah
+RUN npm cache clean --force || true
 
 # Install ALL dependencies (termasuk devDependencies untuk build)
-RUN npm ci
+# Gunakan npm install dengan --legacy-peer-deps untuk menghindari peer dependency issues
+# Jika package-lock.json ada tapi corrupt, npm install akan regenerate
+RUN if [ -f package-lock.json ]; then \
+      npm install --legacy-peer-deps --no-audit || \
+      (echo "⚠️  npm install failed, regenerating package-lock.json..." && \
+       rm -f package-lock.json && \
+       npm install --legacy-peer-deps --no-audit); \
+    else \
+      npm install --legacy-peer-deps --no-audit; \
+    fi
+
+# Verify vite is installed (vite harus ada di devDependencies)
+RUN npm list vite || (echo "⚠️  vite not found, installing..." && npm install vite@^5.0.8 --save-dev --legacy-peer-deps)
 
 # Copy source code
 COPY . .
