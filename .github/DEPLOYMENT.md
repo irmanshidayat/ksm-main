@@ -888,6 +888,172 @@ nc -zv 72.61.142.109 22
 - Pastikan public key di server (`~/.ssh/authorized_keys`) match dengan private key di GitHub Secrets
 - Generate ulang key pair jika perlu dan copy public key ke server lagi
 
+## SSL/HTTPS Setup dengan Let's Encrypt
+
+Proyek ini menggunakan Let's Encrypt untuk SSL/HTTPS certificates. Setup otomatis sudah tersedia untuk production dan development.
+
+### Prerequisites
+
+1. **Domain sudah pointing ke server IP**
+   - Production: `report.ptkiansantang.com` → Server IP
+   - Development: `devreport.ptkiansantang.com` → Server IP
+
+2. **Port 80 dan 443 terbuka di firewall**
+   - Let's Encrypt memerlukan akses ke port 80 untuk validation
+   - Port 443 untuk HTTPS
+
+3. **SSH access ke server** sudah dikonfigurasi
+
+### Setup SSL Certificate
+
+#### Cara 1: Menggunakan Script Otomatis (Recommended)
+
+**Dari Windows PowerShell:**
+
+```powershell
+# Setup SSL untuk development
+.\scripts\setup-ssl.ps1 -Environment dev -Email "your-email@example.com"
+
+# Setup SSL untuk production
+.\scripts\setup-ssl.ps1 -Environment prod -Email "your-email@example.com"
+```
+
+**Dari Server Linux (SSH):**
+
+```bash
+# SSH ke server
+ssh root@72.61.142.109
+
+# Masuk ke directory deployment
+cd /opt/ksm-main-dev  # atau /opt/ksm-main-prod untuk production
+
+# Buat script executable
+chmod +x scripts/setup-ssl.sh
+
+# Jalankan setup SSL
+./scripts/setup-ssl.sh dev your-email@example.com
+# atau untuk production
+./scripts/setup-ssl.sh prod your-email@example.com
+```
+
+#### Cara 2: Manual Setup dengan Certbot
+
+```bash
+# SSH ke server
+ssh root@72.61.142.109
+
+# Install Certbot
+apt update
+apt install -y certbot python3-certbot-nginx
+
+# Generate certificate untuk development
+certbot certonly --standalone \
+    --email your-email@example.com \
+    --agree-tos \
+    --no-eff-email \
+    -d devreport.ptkiansantang.com
+
+# Generate certificate untuk production
+certbot certonly --standalone \
+    --email your-email@example.com \
+    --agree-tos \
+    --no-eff-email \
+    -d report.ptkiansantang.com
+
+# Copy certificates ke deployment directory
+# Development
+cp /etc/letsencrypt/live/devreport.ptkiansantang.com/fullchain.pem /opt/ksm-main-dev/infrastructure/nginx/ssl/cert.pem
+cp /etc/letsencrypt/live/devreport.ptkiansantang.com/privkey.pem /opt/ksm-main-dev/infrastructure/nginx/ssl/key.pem
+
+# Production
+cp /etc/letsencrypt/live/report.ptkiansantang.com/fullchain.pem /opt/ksm-main-prod/infrastructure/nginx/ssl/cert.pem
+cp /etc/letsencrypt/live/report.ptkiansantang.com/privkey.pem /opt/ksm-main-prod/infrastructure/nginx/ssl/key.pem
+
+# Set permissions
+chmod 644 /opt/ksm-main-*/infrastructure/nginx/ssl/cert.pem
+chmod 600 /opt/ksm-main-*/infrastructure/nginx/ssl/key.pem
+
+# Restart nginx container
+cd /opt/ksm-main-dev  # atau /opt/ksm-main-prod
+docker-compose restart nginx-dev  # atau nginx-prod
+```
+
+### Auto-Renewal
+
+Script setup SSL otomatis mengatur auto-renewal untuk certificates. Certificates akan diperbarui otomatis setiap 12 jam melalui cron job.
+
+**Manual Renewal (jika diperlukan):**
+
+```bash
+# SSH ke server
+ssh root@72.61.142.109
+
+# Renew certificate
+certbot renew
+
+# Copy renewed certificates
+# Development
+cp /etc/letsencrypt/live/devreport.ptkiansantang.com/fullchain.pem /opt/ksm-main-dev/infrastructure/nginx/ssl/cert.pem
+cp /etc/letsencrypt/live/devreport.ptkiansantang.com/privkey.pem /opt/ksm-main-dev/infrastructure/nginx/ssl/key.pem
+
+# Production
+cp /etc/letsencrypt/live/report.ptkiansantang.com/fullchain.pem /opt/ksm-main-prod/infrastructure/nginx/ssl/cert.pem
+cp /etc/letsencrypt/live/report.ptkiansantang.com/privkey.pem /opt/ksm-main-prod/infrastructure/nginx/ssl/key.pem
+
+# Reload nginx
+cd /opt/ksm-main-dev  # atau /opt/ksm-main-prod
+docker-compose exec nginx-dev nginx -s reload  # atau nginx-prod
+```
+
+**Cek Status Auto-Renewal:**
+
+```bash
+# Cek cron job
+crontab -l | grep ksm-ssl-renew
+
+# Cek log renewal
+tail -f /var/log/ksm-ssl-renew.log
+```
+
+### Verifikasi SSL
+
+Setelah setup SSL, verifikasi dengan:
+
+```bash
+# Test SSL connection
+curl -I https://devreport.ptkiansantang.com  # development
+curl -I https://report.ptkiansantang.com      # production
+
+# Test SSL certificate details
+openssl s_client -connect devreport.ptkiansantang.com:443 -servername devreport.ptkiansantang.com
+openssl s_client -connect report.ptkiansantang.com:443 -servername report.ptkiansantang.com
+
+# Test dari browser
+# Buka: https://devreport.ptkiansantang.com atau https://report.ptkiansantang.com
+```
+
+### Troubleshooting SSL
+
+**Error: "Domain not pointing to server"**
+- Pastikan DNS A record sudah pointing ke server IP
+- Test dengan: `nslookup devreport.ptkiansantang.com` atau `dig devreport.ptkiansantang.com`
+
+**Error: "Port 80 blocked"**
+- Pastikan port 80 terbuka di firewall
+- Test dengan: `telnet your-server-ip 80`
+
+**Error: "Certificate not found"**
+- Pastikan certificates sudah di-copy ke `/opt/ksm-main-{env}/infrastructure/nginx/ssl/`
+- Cek dengan: `ls -la /opt/ksm-main-dev/infrastructure/nginx/ssl/`
+
+**Error: "Nginx SSL configuration error"**
+- Pastikan nginx config sudah di-update untuk menggunakan Let's Encrypt certificates
+- Test nginx config: `docker-compose exec nginx-dev nginx -t`
+
+**Certificate Expired**
+- Auto-renewal seharusnya memperbarui otomatis
+- Manual renewal: `certbot renew --force-renewal`
+
 ## Monitoring
 
 ### Health Checks
