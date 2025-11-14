@@ -39,6 +39,53 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate required secrets
+        run: |
+          echo "🔍 Validating required secrets..."
+          MISSING_SECRETS=()
+          
+          if [ -z "${{ secrets.SSH_HOST_PROD }}" ]; then
+            MISSING_SECRETS+=("SSH_HOST_PROD")
+          fi
+          
+          if [ -z "${{ secrets.SSH_USER_PROD }}" ]; then
+            MISSING_SECRETS+=("SSH_USER_PROD")
+          fi
+          
+          if [ -z "${{ secrets.SSH_KEY_PROD }}" ]; then
+            MISSING_SECRETS+=("SSH_KEY_PROD")
+          fi
+          
+          if [ ${#MISSING_SECRETS[@]} -gt 0 ]; then
+            echo ""
+            echo "❌ ERROR: Required secrets are not set!"
+            echo ""
+            echo "Missing secrets:"
+            for secret in "${MISSING_SECRETS[@]}"; do
+              echo "  - $secret"
+            done
+            echo ""
+            echo "📝 To fix this, please add the following secrets in GitHub:"
+            echo "   1. Go to: Repository → Settings → Secrets and variables → Actions"
+            echo "   2. Click 'New repository secret'"
+            echo "   3. Add each secret:"
+            echo ""
+            echo "   Required secrets for Production:"
+            echo "   - SSH_HOST_PROD: IP atau hostname server (contoh: 72.61.142.109)"
+            echo "   - SSH_USER_PROD: Username SSH (contoh: root)"
+            echo "   - SSH_KEY_PROD: Private SSH key (full key dengan header/footer)"
+            echo "   - DEPLOY_PATH_PROD: (Optional) Path deployment (default: /opt/ksm-main-prod)"
+            echo ""
+            echo "   Example SSH_KEY_PROD format:"
+            echo "   -----BEGIN OPENSSH PRIVATE KEY-----"
+            echo "   ..."
+            echo "   -----END OPENSSH PRIVATE KEY-----"
+            echo ""
+            exit 1
+          fi
+          
+          echo "✅ All required secrets are set!"
+
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -46,10 +93,6 @@ jobs:
 
       - name: Add server to known hosts
         run: |
-          if [ -z "${{ secrets.SSH_HOST_PROD }}" ]; then
-            echo "❌ ERROR: SSH_HOST_PROD secret is not set!"
-            exit 1
-          fi
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           ssh-keyscan -H -p 22 ${{ secrets.SSH_HOST_PROD }} >> ~/.ssh/known_hosts 2>&1 || {

@@ -18,21 +18,73 @@ Proyek ini menggunakan GitHub Actions untuk deployment otomatis ke server dengan
 
 ### GitHub Secrets Setup
 
-Tambahkan secrets berikut di GitHub Repository Settings → Secrets and variables → Actions:
+**PENTING**: Workflow akan gagal jika secrets tidak diatur dengan benar. Pastikan semua secrets yang diperlukan sudah ditambahkan sebelum menjalankan deployment.
 
-#### Development Secrets
+#### Cara Menambahkan Secrets di GitHub
 
-- `SSH_HOST_DEV`: IP atau hostname server development (contoh: `72.61.142.109`) ssh root@72.61.142.109 -p 22
-- `SSH_USER_DEV`: Username SSH untuk development (contoh: `root`)
-- `SSH_KEY_DEV`: Private SSH key untuk development (full key dengan header/footer)
-- `DEPLOY_PATH_DEV`: Path deployment di server (default: `/opt/ksm-main-dev`)
+1. Buka repository di GitHub
+2. Klik **Settings** → **Secrets and variables** → **Actions**
+3. Klik **New repository secret**
+4. Masukkan **Name** dan **Value**, lalu klik **Add secret**
+5. Ulangi untuk semua secrets yang diperlukan
 
-#### Production Secrets
+#### Development Secrets (Wajib)
 
-- `SSH_HOST_PROD`: IP atau hostname server production (contoh: `72.61.142.109`)
-- `SSH_USER_PROD`: Username SSH untuk production (contoh: `root`)
-- `SSH_KEY_PROD`: Private SSH key untuk production (full key dengan header/footer)
-- `DEPLOY_PATH_PROD`: Path deployment di server (default: `/opt/ksm-main-prod`)
+Tambahkan secrets berikut untuk deployment development:
+
+- **`SSH_HOST_DEV`**: IP atau hostname server development
+  - Contoh: `72.61.142.109`
+  - **Wajib**: Ya
+  
+- **`SSH_USER_DEV`**: Username SSH untuk development
+  - Contoh: `root`
+  - **Wajib**: Ya
+  
+- **`SSH_KEY_DEV`**: Private SSH key untuk development
+  - Format: Full private key dengan header dan footer
+  - Contoh format:
+    ```
+    -----BEGIN OPENSSH PRIVATE KEY-----
+    b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn
+    ...
+    -----END OPENSSH PRIVATE KEY-----
+    ```
+  - **Wajib**: Ya
+  
+- **`DEPLOY_PATH_DEV`**: Path deployment di server
+  - Default: `/opt/ksm-main-dev`
+  - **Wajib**: Tidak (opsional)
+
+#### Production Secrets (Wajib)
+
+Tambahkan secrets berikut untuk deployment production:
+
+- **`SSH_HOST_PROD`**: IP atau hostname server production
+  - Contoh: `72.61.142.109`
+  - **Wajib**: Ya
+  
+- **`SSH_USER_PROD`**: Username SSH untuk production
+  - Contoh: `root`
+  - **Wajib**: Ya
+  
+- **`SSH_KEY_PROD`**: Private SSH key untuk production
+  - Format: Full private key dengan header dan footer
+  - Contoh format:
+    ```
+    -----BEGIN OPENSSH PRIVATE KEY-----
+    b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn
+    ...
+    -----END OPENSSH PRIVATE KEY-----
+    ```
+  - **Wajib**: Ya
+  
+- **`DEPLOY_PATH_PROD`**: Path deployment di server
+  - Default: `/opt/ksm-main-prod`
+  - **Wajib**: Tidak (opsional)
+
+#### Validasi Secrets
+
+Workflow akan otomatis memvalidasi semua secrets yang diperlukan di awal. Jika ada secret yang tidak terdefinisi, workflow akan menampilkan error dengan daftar secrets yang hilang dan instruksi cara memperbaikinya.
 
 **Catatan Penting**: 
 - VPS menggunakan port SSH **22** (port default)

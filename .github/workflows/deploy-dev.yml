@@ -38,6 +38,53 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate required secrets
+        run: |
+          echo "🔍 Validating required secrets..."
+          MISSING_SECRETS=()
+          
+          if [ -z "${{ secrets.SSH_HOST_DEV }}" ]; then
+            MISSING_SECRETS+=("SSH_HOST_DEV")
+          fi
+          
+          if [ -z "${{ secrets.SSH_USER_DEV }}" ]; then
+            MISSING_SECRETS+=("SSH_USER_DEV")
+          fi
+          
+          if [ -z "${{ secrets.SSH_KEY_DEV }}" ]; then
+            MISSING_SECRETS+=("SSH_KEY_DEV")
+          fi
+          
+          if [ ${#MISSING_SECRETS[@]} -gt 0 ]; then
+            echo ""
+            echo "❌ ERROR: Required secrets are not set!"
+            echo ""
+            echo "Missing secrets:"
+            for secret in "${MISSING_SECRETS[@]}"; do
+              echo "  - $secret"
+            done
+            echo ""
+            echo "📝 To fix this, please add the following secrets in GitHub:"
+            echo "   1. Go to: Repository → Settings → Secrets and variables → Actions"
+            echo "   2. Click 'New repository secret'"
+            echo "   3. Add each secret:"
+            echo ""
+            echo "   Required secrets for Development:"
+            echo "   - SSH_HOST_DEV: IP atau hostname server (contoh: 72.61.142.109)"
+            echo "   - SSH_USER_DEV: Username SSH (contoh: root)"
+            echo "   - SSH_KEY_DEV: Private SSH key (full key dengan header/footer)"
+            echo "   - DEPLOY_PATH_DEV: (Optional) Path deployment (default: /opt/ksm-main-dev)"
+            echo ""
+            echo "   Example SSH_KEY_DEV format:"
+            echo "   -----BEGIN OPENSSH PRIVATE KEY-----"
+            echo "   ..."
+            echo "   -----END OPENSSH PRIVATE KEY-----"
+            echo ""
+            exit 1
+          fi
+          
+          echo "✅ All required secrets are set!"
+
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -45,10 +92,6 @@ jobs:
 
       - name: Add server to known hosts
         run: |
-          if [ -z "${{ secrets.SSH_HOST_DEV }}" ]; then
-            echo "❌ ERROR: SSH_HOST_DEV secret is not set!"
-            exit 1
-          fi
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
           ssh-keyscan -H -p 22 ${{ secrets.SSH_HOST_DEV }} >> ~/.ssh/known_hosts 2>&1 || {
