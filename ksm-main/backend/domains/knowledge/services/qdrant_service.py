@@ -1589,7 +1589,7 @@ class QdrantService:
         """
         try:
             # Import lokal untuk menghindari dependency saat Qdrant tidak tersedia
-            from models.rag_models import RagDocument
+            from domains.knowledge.models.rag_models import RagDocument
             from config.database import db
             query = RagDocument.query.filter_by(company_id=company_id)
             if status:

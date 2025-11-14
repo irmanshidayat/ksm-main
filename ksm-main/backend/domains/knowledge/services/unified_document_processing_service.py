@@ -19,7 +19,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 
 from config.database import db
-from models.rag_models import RagDocument, RagDocumentPage, RagDocumentChunk, RagChunkEmbedding
+from domains.knowledge.models.rag_models import RagDocument, RagDocumentPage, RagDocumentChunk, RagChunkEmbedding
 
 # Import services with error handling
 try:

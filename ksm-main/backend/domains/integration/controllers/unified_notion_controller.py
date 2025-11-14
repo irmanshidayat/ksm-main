@@ -8,8 +8,8 @@ Menggabungkan database_discovery_controller, enhanced_database_controller, dan e
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from domains.integration.services.unified_notion_service import get_unified_notion_service
-from models.notion_database import NotionDatabase
-from models.property_mapping import PropertyMapping as PropertyMappingModel
+from domains.integration.models.notion_database import NotionDatabase
+from domains.integration.models.property_mapping import PropertyMapping as PropertyMappingModel
 from config.database import db
 from shared.middlewares.api_auth import jwt_required_custom
 import logging

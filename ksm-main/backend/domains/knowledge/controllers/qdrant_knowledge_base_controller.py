@@ -8,7 +8,7 @@ RESTful API endpoints untuk manajemen dokumen RAG dengan Qdrant integration
 from flask import Blueprint, request, jsonify, current_app
 # Import qdrant service
 from domains.knowledge.services.qdrant_service import get_qdrant_service
-from models.rag_models import RagDocument, RagDocumentPage, RagDocumentChunk, RagChunkEmbedding
+from domains.knowledge.models.rag_models import RagDocument, RagDocumentPage, RagDocumentChunk, RagChunkEmbedding
 from config.database import db
 from datetime import datetime
 import logging
@@ -74,7 +74,7 @@ def upload_document():
         
         # Upload document to database and Qdrant
         try:
-            from models.rag_models import RagDocument
+            from domains.knowledge.models.rag_models import RagDocument
             import base64
             import hashlib
             import os
@@ -202,7 +202,7 @@ def upload_document():
                             chunks.append(chunk)
                             
                             # Create chunk record in database
-                            from models.rag_models import RagDocumentChunk
+                            from domains.knowledge.models.rag_models import RagDocumentChunk
                             import hashlib
                             
                             chunk_record = RagDocumentChunk(
@@ -477,7 +477,7 @@ def delete_document(document_id):
     }
     """
     try:
-        from models.rag_models import RagDocument, RagDocumentPage, RagDocumentChunk, RagChunkEmbedding
+        from domains.knowledge.models.rag_models import RagDocument, RagDocumentPage, RagDocumentChunk, RagChunkEmbedding
         from config.database import db
         
         # Get document from database
@@ -1130,7 +1130,7 @@ def process_local_document(document_id):
                         chunks.append(chunk)
                         
                         # Create chunk record in database
-                        from models.rag_models import RagDocumentChunk
+                        from domains.knowledge.models.rag_models import RagDocumentChunk
                         import hashlib
                         
                         chunk_record = RagDocumentChunk(

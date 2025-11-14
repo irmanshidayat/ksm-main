@@ -219,7 +219,7 @@ services:
       - "8084:80"
       - "8444:443"
     volumes:
-      - ./infrastructure/nginx/nginx.dev.prod.conf:/etc/nginx/nginx.conf
+      - ./infrastructure/nginx/nginx.dev.conf:/etc/nginx/nginx.conf
       - ./infrastructure/nginx/ssl:/etc/nginx/ssl
       - ./logs/nginx-dev:/var/log/nginx
     depends_on:
@@ -277,7 +277,7 @@ services:
       - prometheus-dev
 
   # Adminer - Database Management Tool untuk MySQL Development
-  # Akses via: http://localhost:8085 atau https://devreport.ptkiansantang.com/adminer/
+  # Akses via: http://localhost:8085 atau https://devreport.ptkiansantang.com/adminer
   # Login dengan:
   # - System: MySQL
   # - Server: mysql-dev

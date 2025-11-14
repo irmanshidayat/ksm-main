@@ -7,11 +7,11 @@ Monitor dan logging untuk notifikasi Telegram
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
 from datetime import datetime, timedelta
 from config.database import db
-from models import TelegramSettings
+from domains.knowledge.models import TelegramSettings
 import logging
 import json
 
@@ -20,7 +20,7 @@ logger = logging.getLogger('telegram_monitor')
 logger.setLevel(logging.INFO)
 
 # File handler
-log_file = os.path.join(os.path.dirname(__file__), '../logs/telegram_notifications.log')
+log_file = os.path.join(os.path.dirname(__file__), '../../../logs/telegram_notifications.log')
 os.makedirs(os.path.dirname(log_file), exist_ok=True)
 
 file_handler = logging.FileHandler(log_file)

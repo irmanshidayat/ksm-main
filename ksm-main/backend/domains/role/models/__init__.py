@@ -16,6 +16,13 @@ from .role_models import (
     WorkflowInstance
 )
 
+from .menu_models import (
+    Menu,
+    MenuPermission,
+    PermissionAuditLog,
+    RoleLevelTemplate
+)
+
 __all__ = [
     'Department',
     'Role',
@@ -27,6 +34,11 @@ __all__ = [
     'PermissionTemplate',
     'WorkflowTemplate',
     'AuditLog',
-    'WorkflowInstance'
+    'WorkflowInstance',
+    # Menu models
+    'Menu',
+    'MenuPermission',
+    'PermissionAuditLog',
+    'RoleLevelTemplate'
 ]
 

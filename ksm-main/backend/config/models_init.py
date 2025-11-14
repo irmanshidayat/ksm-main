@@ -30,9 +30,9 @@ def init_models():
     # Import email domain models
     from domains.email.models.email_models import UserEmailDomain
     
-    from models.notion_database import NotionDatabase
-    from models.property_mapping import PropertyMapping
-    from models.rag_models import (
+    from domains.integration.models.notion_database import NotionDatabase
+    from domains.integration.models.property_mapping import PropertyMapping
+    from domains.knowledge.models.rag_models import (
         RagDocument, RagDocumentPage, RagDocumentChunk,
         RagChunkEmbedding, RagDocumentPermission
     )
@@ -44,7 +44,7 @@ def init_models():
     )
     
     # Import menu models
-    from models.menu_models import (
+    from domains.role.models.menu_models import (
         Menu, MenuPermission, PermissionAuditLog
     )
     
@@ -99,7 +99,7 @@ def init_models():
     )
     
     # Import email attachment models
-    from models.email_attachment_model import EmailAttachment
+    from domains.email.models.email_attachment_model import EmailAttachment
     
     return {
         'inventory': {

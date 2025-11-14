@@ -8,45 +8,12 @@ Routes untuk fitur AI standalone dan smart routing
 from flask import Blueprint, request, jsonify
 import logging
 from typing import Dict, Any
-import sys
-import os
 
 logger = logging.getLogger(__name__)
 
-def safe_import_service(service_name, function_name):
-    """Safe import service dengan fallback untuk relative import"""
-    # Mapping service name ke domain path
-    service_mapping = {
-        "smart_routing_service": "domains.knowledge.services.smart_routing_service",
-        "enhanced_ai_service": "services.enhanced_ai_service"  # Keep for backward compatibility
-    }
-    
-    # Try domain import first
-    if service_name in service_mapping:
-        try:
-            module = __import__(service_mapping[service_name], fromlist=[function_name])
-            return getattr(module, function_name)
-        except ImportError:
-            pass
-    
-    # Try absolute import from services (for backward compatibility)
-    try:
-        module = __import__(f"services.{service_name}", fromlist=[function_name])
-        return getattr(module, function_name)
-    except ImportError:
-        # Fallback untuk relative import
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
-        if parent_dir not in sys.path:
-            sys.path.append(parent_dir)
-        try:
-            module = __import__(f"services.{service_name}", fromlist=[function_name])
-            return getattr(module, function_name)
-        except ImportError:
-            # Last resort: direct import
-            sys.path.append(current_dir)
-            module = __import__(service_name, fromlist=[function_name])
-            return getattr(module, function_name)
+# Import services langsung dari domain
+from domains.knowledge.services.smart_routing_service import get_smart_routing_service
+from domains.integration.services.agent_ai_sync_service import get_agent_ai_sync_service
 
 # Create blueprint
 standalone_ai_bp = Blueprint('standalone_ai', __name__, url_prefix='/api/standalone-ai')
@@ -71,22 +38,15 @@ def ask_standalone_question():
         
         # Get parameters
         system_prompt = data.get('system_prompt', 'Anda adalah asisten AI yang membantu menjawab pertanyaan umum.')
-        model = data.get('model')
-        temperature = float(data.get('temperature', 0.7))
-        max_tokens = int(data.get('max_tokens', 2048))
         use_cache = data.get('use_cache', True)
         
-        # Import service
-        get_standalone_openrouter_service = safe_import_service("enhanced_ai_service", "get_standalone_openrouter_service")
-        service = get_standalone_openrouter_service()
-        
-        # Generate response
-        response = service.generate_standalone_response(
+        # Use smart routing service dengan force_service='standalone'
+        # Smart routing akan fallback ke agent_ai jika standalone tidak tersedia
+        routing_service = get_smart_routing_service()
+        response = routing_service.route_ai_request(
             query=query,
-            system_prompt=system_prompt,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            context_type='general',  # Force general/standalone context
+            force_service='standalone',  # Try standalone first, will fallback to agent_ai
             use_cache=use_cache
         )
         
@@ -121,22 +81,15 @@ def analyze_standalone_vision():
             }), 400
         
         # Get parameters
-        system_prompt = data.get('system_prompt', 'Anda adalah asisten AI dengan kemampuan vision untuk menganalisis gambar.')
-        temperature = float(data.get('temperature', 0.3))
-        max_tokens = int(data.get('max_tokens', 2048))
         use_cache = data.get('use_cache', True)
         
-        # Import service
-        get_standalone_openrouter_service = safe_import_service("enhanced_ai_service", "get_standalone_openrouter_service")
-        service = get_standalone_openrouter_service()
-        
-        # Generate vision response
-        response = service.generate_standalone_vision_response(
+        # Use smart routing service untuk vision request
+        routing_service = get_smart_routing_service()
+        response = routing_service.route_vision_request(
             query=query,
             image_base64=image_base64,
-            system_prompt=system_prompt,
-            temperature=temperature,
-            max_tokens=max_tokens,
+            context_type='general',  # Force general/standalone context
+            force_service='standalone',  # Try standalone first, will fallback to agent_ai
             use_cache=use_cache
         )
         
@@ -173,12 +126,9 @@ def smart_route_ai_request():
         force_service = data.get('force_service')
         use_cache = data.get('use_cache', True)
         
-        # Import service
-        get_smart_routing_service = safe_import_service("smart_routing_service", "get_smart_routing_service")
-        service = get_smart_routing_service()
-        
-        # Route request
-        response = service.route_ai_request(
+        # Use smart routing service
+        routing_service = get_smart_routing_service()
+        response = routing_service.route_ai_request(
             query=query,
             context_type=context_type,
             force_service=force_service,
@@ -220,12 +170,9 @@ def smart_route_vision_request():
         force_service = data.get('force_service')
         use_cache = data.get('use_cache', True)
         
-        # Import service
-        get_smart_routing_service = safe_import_service("smart_routing_service", "get_smart_routing_service")
-        service = get_smart_routing_service()
-        
-        # Route vision request
-        response = service.route_vision_request(
+        # Use smart routing service untuk vision
+        routing_service = get_smart_routing_service()
+        response = routing_service.route_vision_request(
             query=query,
             image_base64=image_base64,
             context_type=context_type,
@@ -245,16 +192,14 @@ def smart_route_vision_request():
 
 @standalone_ai_bp.route('/status', methods=['GET'])
 def get_standalone_service_status():
-    """Get status dari standalone OpenRouter service"""
+    """Get status dari smart routing service"""
     try:
-        get_standalone_openrouter_service = safe_import_service("enhanced_ai_service", "get_standalone_openrouter_service")
-        service = get_standalone_openrouter_service()
-        
-        status = service.get_service_status()
-        return jsonify(status)
+        routing_service = get_smart_routing_service()
+        stats = routing_service.get_routing_stats()
+        return jsonify(stats)
         
     except Exception as e:
-        logger.error(f"❌ Error getting standalone service status: {e}")
+        logger.error(f"❌ Error getting service status: {e}")
         return jsonify({
             'status': 'error',
             'message': f'Terjadi kesalahan: {str(e)}'
@@ -264,10 +209,8 @@ def get_standalone_service_status():
 def get_routing_stats():
     """Get routing statistics dari smart routing service"""
     try:
-        get_smart_routing_service = safe_import_service("smart_routing_service", "get_smart_routing_service")
-        service = get_smart_routing_service()
-        
-        stats = service.get_routing_stats()
+        routing_service = get_smart_routing_service()
+        stats = routing_service.get_routing_stats()
         return jsonify(stats)
         
     except Exception as e:
@@ -295,12 +238,9 @@ def test_routing():
                 'message': 'Test queries harus berupa array'
             }), 400
         
-        # Import service
-        get_smart_routing_service = safe_import_service("smart_routing_service", "get_smart_routing_service")
-        service = get_smart_routing_service()
-        
-        # Test routing
-        results = service.test_routing(test_queries)
+        # Use smart routing service
+        routing_service = get_smart_routing_service()
+        results = routing_service.test_routing(test_queries)
         return jsonify(results)
         
     except Exception as e:
@@ -312,12 +252,10 @@ def test_routing():
 
 @standalone_ai_bp.route('/clear-cache', methods=['POST'])
 def clear_standalone_cache():
-    """Clear cache dari standalone OpenRouter service"""
+    """Clear cache dari routing service"""
     try:
-        get_standalone_openrouter_service = safe_import_service("enhanced_ai_service", "get_standalone_openrouter_service")
-        service = get_standalone_openrouter_service()
-        
-        service.clear_cache()
+        routing_service = get_smart_routing_service()
+        routing_service.clear_routing_cache()
         
         return jsonify({
             'status': 'success',
@@ -325,7 +263,7 @@ def clear_standalone_cache():
         })
         
     except Exception as e:
-        logger.error(f"❌ Error clearing standalone cache: {e}")
+        logger.error(f"❌ Error clearing cache: {e}")
         return jsonify({
             'status': 'error',
             'message': f'Terjadi kesalahan: {str(e)}'
@@ -333,12 +271,10 @@ def clear_standalone_cache():
 
 @standalone_ai_bp.route('/cache-stats', methods=['GET'])
 def get_cache_stats():
-    """Get cache statistics dari standalone OpenRouter service"""
+    """Get cache statistics dari routing service"""
     try:
-        get_standalone_openrouter_service = safe_import_service("enhanced_ai_service", "get_standalone_openrouter_service")
-        service = get_standalone_openrouter_service()
-        
-        stats = service.get_cache_stats()
+        routing_service = get_smart_routing_service()
+        stats = routing_service.get_routing_cache_stats()
         return jsonify(stats)
         
     except Exception as e:
@@ -352,10 +288,8 @@ def get_cache_stats():
 def get_routing_cache_stats():
     """Get cache statistics dari smart routing service"""
     try:
-        get_smart_routing_service = safe_import_service("smart_routing_service", "get_smart_routing_service")
-        service = get_smart_routing_service()
-        
-        stats = service.get_routing_cache_stats()
+        routing_service = get_smart_routing_service()
+        stats = routing_service.get_routing_cache_stats()
         return jsonify(stats)
         
     except Exception as e:
@@ -369,10 +303,8 @@ def get_routing_cache_stats():
 def clear_routing_cache():
     """Clear cache dari smart routing service"""
     try:
-        get_smart_routing_service = safe_import_service("smart_routing_service", "get_smart_routing_service")
-        service = get_smart_routing_service()
-        
-        service.clear_routing_cache()
+        routing_service = get_smart_routing_service()
+        routing_service.clear_routing_cache()
         
         return jsonify({
             'status': 'success',

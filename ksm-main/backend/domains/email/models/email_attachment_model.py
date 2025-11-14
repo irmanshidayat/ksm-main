@@ -110,3 +110,4 @@ class EmailAttachment(db.Model):
         """Check if file size is within limits"""
         max_size_bytes = EmailAttachment.get_max_file_size_mb() * 1024 * 1024
         return file_size_bytes <= max_size_bytes
+

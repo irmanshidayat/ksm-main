@@ -351,7 +351,7 @@ class EmailDomainService:
             attachments = []
             attachment_ids = email_data.get('attachment_ids', [])
             if attachment_ids:
-                from models.email_attachment_model import EmailAttachment
+                from domains.email.models.email_attachment_model import EmailAttachment
                 attachments = db.session.query(EmailAttachment).filter(
                     EmailAttachment.id.in_(attachment_ids),
                     EmailAttachment.uploaded_by_user_id == user_id,

@@ -96,8 +96,8 @@ def get_env_config():
             'REDIS_URL': 'redis://redis-prod:6379/0',
             'AGENT_AI_URL': 'http://agent-ai-prod:5000',
             'AGENT_AI_BASE_URL': 'http://agent-ai-prod:5000',
-            'CORS_ORIGINS': 'http://localhost:3002,http://localhost:3005,http://localhost:8001,http://localhost:5001,https://report.ptkiansatang.com',
-            'GMAIL_REDIRECT_URI': 'https://report.ptkiansatang.com/request-pembelian/auth/gmail/callback',
+            'CORS_ORIGINS': 'http://localhost:3002,http://localhost:3005,http://localhost:8001,http://localhost:5001,https://report.ptkiansantang.com',
+            'GMAIL_REDIRECT_URI': 'https://report.ptkiansantang.com/request-pembelian/auth/gmail/callback',
             'FLASK_ENV': 'production',
             'FLASK_DEBUG': False,
             'LOG_LEVEL': 'INFO'

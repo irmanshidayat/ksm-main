@@ -12,10 +12,11 @@ from datetime import datetime, timedelta
 import logging
 import uuid
 
-from models.vendor_order_models import VendorOrder
-from models import (
-    VendorPenawaranItem, VendorPenawaran, Vendor, RequestPembelian, VendorNotification
+from domains.vendor.models.vendor_order_models import VendorOrder
+from domains.vendor.models import (
+    VendorPenawaranItem, VendorPenawaran, Vendor, VendorNotification
 )
+from domains.inventory.models import RequestPembelian
 from domains.vendor.services.vendor_notification_service import VendorNotificationService
 
 logger = logging.getLogger(__name__)
@@ -672,7 +673,7 @@ class VendorOrderService:
             
             # Create status history entry
             try:
-                from models.vendor_order_models import VendorOrderStatusHistory
+                from domains.vendor.models.vendor_order_models import VendorOrderStatusHistory
                 history = VendorOrderStatusHistory(
                     order_id=order_id,
                     old_status=old_status,

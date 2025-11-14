@@ -21,8 +21,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 # Import dependencies
 from shared.services.database_naming_service import DatabaseNamingConvention
-from models.notion_database import NotionDatabase
-from models.property_mapping import PropertyMapping as PropertyMappingModel
+from domains.integration.models.notion_database import NotionDatabase
+from domains.integration.models.property_mapping import PropertyMapping as PropertyMappingModel
 from config.database import db
 
 # Load environment variables

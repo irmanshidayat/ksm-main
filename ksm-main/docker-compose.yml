@@ -15,7 +15,7 @@
 # Untuk PRODUCTION:
 # - Gunakan docker-compose up untuk menjalankan semua service
 # - Pastikan file .env sudah dikonfigurasi dengan benar
-# - Domain: https://report.ptkiansatang.com
+# - Domain: https://report.ptkiansantang.com
 #
 # =============================================================================
 
@@ -276,7 +276,7 @@ services:
       - prometheus
 
   # Adminer - Database Management Tool untuk MySQL
-  # Akses via: http://localhost:8083 atau https://report.ptkiansatang.com/adminer/
+  # Akses via: http://localhost:8083 atau https://report.ptkiansantang.com/adminer
   # Login dengan:
   # - System: MySQL
   # - Server: mysql-prod

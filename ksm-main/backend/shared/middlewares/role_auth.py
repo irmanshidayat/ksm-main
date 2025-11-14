@@ -10,7 +10,7 @@ from flask_jwt_extended import get_jwt_identity
 from functools import wraps
 import logging
 from models import User
-from models.menu_models import Menu, MenuPermission
+from domains.role.models.menu_models import Menu, MenuPermission
 from models import Role, UserRole
 from domains.role.services.user_role_service import UserRoleService
 

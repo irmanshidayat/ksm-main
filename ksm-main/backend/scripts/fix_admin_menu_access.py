@@ -24,7 +24,7 @@ except ImportError:
 from config.database import db
 from models import User
 from models import Role, UserRole
-from models.menu_models import Menu, MenuPermission
+from domains.role.models.menu_models import Menu, MenuPermission
 from domains.role.services.permission_service import permission_service
 import logging
 

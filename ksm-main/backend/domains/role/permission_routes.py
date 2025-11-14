@@ -32,7 +32,7 @@ def get_menus():
 def get_menu_visibility_matrix():
     """Get menu visibility matrix (show_in_sidebar) for all roles"""
     try:
-        from models.menu_models import Menu, MenuPermission
+        from domains.role.models.menu_models import Menu, MenuPermission
         from domains.role.models.role_models import Role
         from config.database import db
         
@@ -215,7 +215,7 @@ def copy_permissions():
 def update_menu_sidebar_visibility(menu_id, role_id):
     """Update show_in_sidebar for a specific menu-role combination"""
     try:
-        from models.menu_models import MenuPermission
+        from domains.role.models.menu_models import MenuPermission
         from config.database import db
         
         current_user = getattr(request, 'current_user', None)
@@ -419,7 +419,7 @@ def get_permission_statistics():
 def update_menu(menu_id):
     """Update menu information"""
     try:
-        from models.menu_models import Menu
+        from domains.role.models.menu_models import Menu
         
         menu_id = request.view_args['menu_id']
         data = request.get_json()
@@ -472,7 +472,7 @@ def update_menu(menu_id):
 def bulk_update_menu_order():
     """Bulk update menu order_index"""
     try:
-        from models.menu_models import Menu
+        from domains.role.models.menu_models import Menu
         from config.database import db
         
         data = request.get_json()
@@ -566,7 +566,7 @@ def apply_level_template_to_role(role_id):
 def create_menu():
     """Create new menu"""
     try:
-        from models.menu_models import Menu
+        from domains.role.models.menu_models import Menu
         from config.database import db
         
         data = request.get_json()
@@ -621,7 +621,7 @@ def create_menu():
 def delete_menu():
     """Delete menu (soft delete)"""
     try:
-        from models.menu_models import Menu
+        from domains.role.models.menu_models import Menu
         from config.database import db
         
         menu_id = request.view_args['menu_id']

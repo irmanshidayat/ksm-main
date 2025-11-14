@@ -13,7 +13,7 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config.database import db
-from models.menu_models import Menu, MenuPermission, PermissionAuditLog
+from domains.role.models.menu_models import Menu, MenuPermission, PermissionAuditLog
 from models import Role
 from shared.utils.logger import get_logger
 

@@ -74,8 +74,8 @@ class Menu(db.Model):
     @classmethod
     def get_user_accessible_menus(cls, user_id):
         """Get menus accessible by specific user based on their roles"""
-        from models import User
-        from models import UserRole
+        from domains.auth.models import User
+        from domains.role.models import UserRole
         
         # Get user roles
         user_roles = db.session.query(UserRole.role_id).filter_by(user_id=user_id).all()
@@ -226,3 +226,4 @@ class RoleLevelTemplate(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
+

@@ -8,7 +8,7 @@ Controller untuk manajemen permissions dengan CRUD operations yang komprehensif
 from flask import request, jsonify
 from datetime import datetime
 from config.database import db
-from models.menu_models import Menu, MenuPermission, PermissionAuditLog
+from domains.role.models.menu_models import Menu, MenuPermission, PermissionAuditLog
 from domains.role.models.role_models import Role
 from shared.utils.logger import get_logger
 from shared.utils.validators import validate_request_data
@@ -96,7 +96,7 @@ class PermissionController:
     def get_level_templates():
         """List semua template level role"""
         try:
-            from models.menu_models import RoleLevelTemplate
+            from domains.role.models.menu_models import RoleLevelTemplate
             templates = RoleLevelTemplate.query.filter_by(is_active=True).order_by(RoleLevelTemplate.level).all()
             return jsonify({
                 'success': True,
@@ -114,7 +114,7 @@ class PermissionController:
     def get_level_template(level: int):
         """Ambil detail template untuk level tertentu"""
         try:
-            from models.menu_models import RoleLevelTemplate
+            from domains.role.models.menu_models import RoleLevelTemplate
             tpl = RoleLevelTemplate.query.filter_by(level=level, is_active=True).first()
             if not tpl:
                 return jsonify({
@@ -151,7 +151,7 @@ class PermissionController:
     def upsert_level_template(level: int, payload: dict, current_user_id: int):
         """Buat atau update template level role"""
         try:
-            from models.menu_models import RoleLevelTemplate
+            from domains.role.models.menu_models import RoleLevelTemplate
             name = payload.get('name')
             permissions = payload.get('permissions', [])
             if not isinstance(level, int) or level < 1:
@@ -554,7 +554,7 @@ class PermissionController:
         Lakukan upsert ke tabel MenuPermission tanpa menghapus data role lainnya.
         """
         try:
-            from models.menu_models import RoleLevelTemplate
+            from domains.role.models.menu_models import RoleLevelTemplate
 
             # Validasi role
             role = Role.query.get(role_id)

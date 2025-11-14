@@ -246,3 +246,38 @@ class VendorOrder(db.Model):
     
     def __repr__(self):
         return f'<VendorOrder {self.order_number}: {self.item_name} - {self.status}>'
+
+
+class VendorOrderStatusHistory(db.Model):
+    """Model untuk tracking history perubahan status vendor order"""
+    __tablename__ = 'vendor_order_status_history'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    vendor_order_id = db.Column(db.Integer, db.ForeignKey('vendor_orders.id'), nullable=False)
+    old_status = db.Column(db.String(50), nullable=True)
+    new_status = db.Column(db.String(50), nullable=False)
+    changed_by_user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    vendor_order = db.relationship('VendorOrder', backref='status_history')
+    changed_by_user = db.relationship('User', backref='vendor_order_status_changes')
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_vendor_order_history_order', 'vendor_order_id'),
+        Index('idx_vendor_order_history_created', 'created_at'),
+    )
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'vendor_order_id': self.vendor_order_id,
+            'old_status': self.old_status,
+            'new_status': self.new_status,
+            'changed_by_user_id': self.changed_by_user_id,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+

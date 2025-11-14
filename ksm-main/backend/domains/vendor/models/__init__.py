@@ -15,6 +15,11 @@ from .vendor_models import (
     VendorNotification
 )
 
+from .vendor_order_models import (
+    VendorOrder,
+    VendorOrderStatusHistory
+)
+
 __all__ = [
     'Vendor',
     'VendorCategory',
@@ -25,6 +30,9 @@ __all__ = [
     'UploadConfig',
     'FileUploadLog',
     'VendorTemplate',
-    'VendorNotification'
+    'VendorNotification',
+    # Vendor Order models
+    'VendorOrder',
+    'VendorOrderStatusHistory'
 ]
 

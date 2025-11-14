@@ -14,6 +14,14 @@ from .knowledge_models import (
     BotStatusHistory
 )
 
+from .rag_models import (
+    RagDocument,
+    RagDocumentPage,
+    RagDocumentChunk,
+    RagChunkEmbedding,
+    RagDocumentPermission
+)
+
 # User model sudah dipindah ke domains/auth/models/
 # Import untuk backward compatibility
 from domains.auth.models.auth_models import User
@@ -28,6 +36,12 @@ __all__ = [
     'User',  # Imported from auth domain
     'EmailLog',
     'TelegramSettings',
-    'BotStatusHistory'
+    'BotStatusHistory',
+    # RAG models
+    'RagDocument',
+    'RagDocumentPage',
+    'RagDocumentChunk',
+    'RagChunkEmbedding',
+    'RagDocumentPermission'
 ]
 

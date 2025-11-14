@@ -15,7 +15,13 @@ from domains.knowledge.models import (
     TelegramSettings,
     BotStatusHistory,
     EmailLog,
-    file_tags
+    file_tags,
+    # RAG models
+    RagDocument,
+    RagDocumentPage,
+    RagDocumentChunk,
+    RagChunkEmbedding,
+    RagDocumentPermission
 )
 
 # Auth models sudah dipindah ke domains/auth/models
@@ -35,7 +41,12 @@ from domains.role.models import (
     PermissionTemplate,
     WorkflowTemplate,
     AuditLog,
-    WorkflowInstance
+    WorkflowInstance,
+    # Menu models
+    Menu,
+    MenuPermission,
+    PermissionAuditLog,
+    RoleLevelTemplate
 )
 
 # Inventory models sudah dipindah ke domains/inventory/models
@@ -98,7 +109,10 @@ from domains.notification.models import (
 )
 
 # Email models sudah dipindah ke domains/email/models
-from domains.email.models import UserEmailDomain
+from domains.email.models import (
+    UserEmailDomain,
+    EmailAttachment
+)
 
 # Task models sudah dipindah ke domains/task/models
 from domains.task.models import (
@@ -118,9 +132,12 @@ from domains.attendance.models import (
     AttendanceSettings
 )
 
-from .notion_database import NotionDatabase
-
-from .property_mapping import PropertyMapping
+# Integration models sudah dipindah ke domains/integration/models
+# Import dari domain untuk backward compatibility
+from domains.integration.models import (
+    NotionDatabase,
+    PropertyMapping
+)
 
 # Mobil models sudah dipindah ke domains/mobil/models
 # Import dari domain untuk backward compatibility
@@ -136,7 +153,12 @@ from domains.mobil.models import (
     WaitingListStatus
 )
 
-from .vendor_order_models import VendorOrder
+# Vendor Order models sudah dipindah ke domains/vendor/models
+# Import dari domain untuk backward compatibility
+from domains.vendor.models import (
+    VendorOrder,
+    VendorOrderStatusHistory
+)
 
 __all__ = [
     # Knowledge models
@@ -150,6 +172,12 @@ __all__ = [
     'BotStatusHistory',
     'EmailLog',
     'file_tags',
+    # RAG models
+    'RagDocument',
+    'RagDocumentPage',
+    'RagDocumentChunk',
+    'RagChunkEmbedding',
+    'RagDocumentPermission',
     # Role models
     'Department',
     'Role',
@@ -162,6 +190,11 @@ __all__ = [
     'WorkflowTemplate',
     'AuditLog',
     'WorkflowInstance',
+    # Menu models
+    'Menu',
+    'MenuPermission',
+    'PermissionAuditLog',
+    'RoleLevelTemplate',
     # Inventory models
     'KategoriBarang',
     'Barang',
@@ -211,6 +244,7 @@ __all__ = [
     'UserActivity',
     # Email models
     'UserEmailDomain',
+    'EmailAttachment',
     # Task models
     'RemindExpDocs',
     'DocumentStatus',
@@ -236,5 +270,6 @@ __all__ = [
     'RequestStatus',
     'RecurringPattern',
     'WaitingListStatus',
-    'VendorOrder'
+    'VendorOrder',
+    'VendorOrderStatusHistory'
 ]

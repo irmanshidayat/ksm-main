@@ -143,7 +143,7 @@ class RoleManagementController:
             
             # Apply default menu permissions from Role Level Template (if exists)
             try:
-                from models.menu_models import RoleLevelTemplate, MenuPermission
+                from domains.role.models.menu_models import RoleLevelTemplate, MenuPermission
                 tpl = RoleLevelTemplate.query.filter_by(level=role.level, is_active=True).first()
                 if tpl and tpl.permissions:
                     # Clear any existing menu permissions for safety (new role shouldn't have any)

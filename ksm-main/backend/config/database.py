@@ -164,11 +164,11 @@ def init_database(app):
         # RemindExpDocs sudah dipindah ke domains/task/models
         # Tidak perlu diimport lagi di sini
         # Knowledge models sudah diimport di models_init.py, tidak perlu diimport lagi di sini
-        from models.notion_database import NotionDatabase
-        from models.property_mapping import PropertyMapping
+        from domains.integration.models.notion_database import NotionDatabase
+        from domains.integration.models.property_mapping import PropertyMapping
         from domains.mobil.models.mobil_models import MobilRequest, WaitingList, Mobil, MobilUsageLog
         # Request pembelian models sudah dipindah ke domains/inventory/models
         # Tidak perlu diimport lagi di sini
-        from models.vendor_order_models import VendorOrder
+        from domains.vendor.models.vendor_order_models import VendorOrder
     
     return db

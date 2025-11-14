@@ -175,3 +175,4 @@ class PropertyMapping(db.Model):
     def get_all_database_ids(cls):
         """Get semua database ID yang memiliki mapping"""
         return [row[0] for row in db.session.query(cls.database_id).distinct().all()]
+
