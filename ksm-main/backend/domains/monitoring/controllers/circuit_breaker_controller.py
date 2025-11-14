@@ -7,7 +7,6 @@ Monitoring dan management endpoints untuk circuit breakers
 
 from flask import Blueprint, jsonify, request
 from shared.services.circuit_breaker import circuit_breaker_manager, get_agent_ai_circuit_breaker
-from services.agent_ai_client import get_circuit_breaker_stats, reset_circuit_breaker
 import logging
 
 logger = logging.getLogger(__name__)
@@ -52,7 +51,8 @@ def get_circuit_breaker_stats():
 def get_agent_ai_circuit_breaker_stats():
     """Get Agent AI circuit breaker statistics"""
     try:
-        stats = get_circuit_breaker_stats()
+        cb = get_agent_ai_circuit_breaker()
+        stats = cb.get_stats()
         
         return jsonify({
             'circuit_breaker': 'agent_ai',
@@ -78,7 +78,8 @@ def get_agent_ai_circuit_breaker_stats():
 def reset_agent_ai_circuit_breaker():
     """Reset Agent AI circuit breaker"""
     try:
-        reset_circuit_breaker()
+        cb = get_agent_ai_circuit_breaker()
+        cb.reset()
         
         return jsonify({
             'message': 'Agent AI circuit breaker reset successfully',
