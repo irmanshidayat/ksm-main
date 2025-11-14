@@ -10,8 +10,8 @@ import logging
 
 from config.database import db
 from domains.vendor.services.vendor_management_service import VendorManagementService
-from models import Vendor, VendorPenawaran
-from models import User
+from domains.vendor.models.vendor_models import Vendor, VendorPenawaran
+from domains.auth.models.auth_models import User
 
 logger = logging.getLogger(__name__)
 

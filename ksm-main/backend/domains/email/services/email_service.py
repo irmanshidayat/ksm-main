@@ -16,7 +16,7 @@ import os
 import json
 from flask_jwt_extended import get_jwt_identity
 from domains.auth.services.gmail_oauth_service import GmailOAuthService
-from models import EmailLog
+from domains.knowledge.models.knowledge_models import EmailLog
 from config.database import db
 from googleapiclient.discovery import build
 

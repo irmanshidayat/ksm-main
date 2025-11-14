@@ -8,7 +8,7 @@ Service untuk business logic permission management dengan best practices
 from datetime import datetime, timedelta
 from config.database import db
 from models.menu_models import Menu, MenuPermission, PermissionAuditLog
-from models import Role
+from domains.role.models.role_models import Role
 from shared.utils.logger import get_logger
 import json
 
@@ -629,11 +629,11 @@ class PermissionService:
     def check_user_permission(user_id, module, action, scope='own', resource_id=None):
         """Check if user has specific permission for module and action"""
         try:
-            from models import UserRole
+            from domains.role.models.role_models import UserRole
             from models import User
             
             # Admin override berbasis assignment aktif, bukan legacy field
-            from models import Role as R, UserRole as UR
+            from domains.role.models.role_models import Role as R, UserRole as UR
             active_admin = db.session.query(UR).join(R, R.id == UR.role_id) \
                 .filter(UR.user_id == user_id, UR.is_active == True, R.is_active == True, R.name.ilike('admin')) \
                 .first()
@@ -654,7 +654,7 @@ class PermissionService:
             # This is a simplified implementation - in production you'd have a proper permission matrix
             if module in ['roles', 'permissions', 'departments'] and action in ['create', 'read', 'update', 'delete']:
                 # For role management operations, check if user has management role
-                from models import Role
+                from domains.role.models.role_models import Role
                 management_roles = Role.query.filter(
                     Role.id.in_(role_ids),
                     Role.is_management == True,
@@ -678,7 +678,7 @@ class PermissionService:
     def check_user_menu_permission(user_id, menu_path, action='read'):
         """Check if user has permission for specific menu and action"""
         try:
-            from models import UserRole
+            from domains.role.models.role_models import UserRole
             
             # Get user roles
             user_roles = UserRole.query.filter_by(user_id=user_id, is_active=True).all()
@@ -712,7 +712,7 @@ class PermissionService:
     def get_user_accessible_menus(user_id):
         """Get all menus accessible by user"""
         try:
-            from models import UserRole
+            from domains.role.models.role_models import UserRole
             from models import User
             
             # Check if show_in_sidebar column exists
@@ -845,7 +845,7 @@ class PermissionService:
             logger.info(f"[SUCCESS] Created {len(created_menus)} default menus")
             
             # Create default roles if they don't exist
-            from models import Role, Department
+            from domains.role.models.role_models import Role, Department
             
             default_roles = [
                 {

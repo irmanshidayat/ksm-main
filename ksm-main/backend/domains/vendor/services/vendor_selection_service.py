@@ -11,9 +11,11 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 import logging
 
-from models import (
-    RequestPembelian, Vendor, VendorPenawaran, VendorPenawaranItem,
-    RequestPembelianItem, VendorNotification
+from domains.inventory.models.request_pembelian_models import (
+    RequestPembelian, RequestPembelianItem
+)
+from domains.vendor.models.vendor_models import (
+    Vendor, VendorPenawaran, VendorPenawaranItem, VendorNotification
 )
 
 logger = logging.getLogger(__name__)
@@ -173,7 +175,7 @@ class VendorSelectionService:
                         # Get actual barang name if request_item exists
                         if request_item:
                             try:
-                                from models import Barang
+                                from domains.inventory.models.inventory_models import Barang
                                 barang = self.db.query(Barang).filter(Barang.id == request_item.barang_id).first()
                                 if barang:
                                     request_item_name = barang.nama_barang

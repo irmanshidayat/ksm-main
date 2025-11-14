@@ -11,7 +11,7 @@ from datetime import datetime
 import logging
 
 from config.database import db
-from models import User
+from domains.auth.models.auth_models import User
 
 logger = logging.getLogger(__name__)
 

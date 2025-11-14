@@ -15,12 +15,11 @@ import hashlib
 import logging
 from werkzeug.utils import secure_filename
 
-from models import (
+from domains.vendor.models.vendor_models import (
     Vendor, VendorCategory, VendorPenawaran, VendorPenawaranFile, 
-    UploadConfig, FileUploadLog
+    UploadConfig, FileUploadLog, VendorNotification
 )
-from models import VendorNotification
-from models import KategoriBarang
+from domains.inventory.models.inventory_models import KategoriBarang
 
 logger = logging.getLogger(__name__)
 

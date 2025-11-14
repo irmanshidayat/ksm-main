@@ -7,10 +7,11 @@ Service untuk mengelola task harian karyawan dengan integrasi absensi
 
 from datetime import datetime, date, timedelta
 from config.database import db
-from models import DailyTask, TaskAttachment, TaskComment, TaskSettings, AttendanceRecord
-from models import User
-from models import Department, Role, UserRole
-from models import Notification
+from domains.task.models.task_models import DailyTask, TaskAttachment, TaskComment, TaskSettings
+from domains.attendance.models.attendance_models import AttendanceRecord
+from domains.auth.models.auth_models import User
+from domains.role.models.role_models import Department, Role, UserRole
+from domains.notification.models.notification_models import Notification
 from sqlalchemy import and_, or_, func, desc, asc
 from sqlalchemy.orm import joinedload
 from shared.utils.logger import get_logger

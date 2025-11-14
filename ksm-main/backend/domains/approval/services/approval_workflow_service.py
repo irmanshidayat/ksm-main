@@ -118,8 +118,8 @@ class ApprovalWorkflowService:
     def _get_approvers_for_step(self, step) -> List:
         """Get approvers for approval step"""
         try:
-            from models import User
-            from models import UserRole, Role, Department
+            from domains.auth.models.auth_models import User
+            from domains.role.models.role_models import UserRole, Role, Department
             
             approvers = []
             

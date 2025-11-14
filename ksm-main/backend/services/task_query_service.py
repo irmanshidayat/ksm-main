@@ -8,8 +8,8 @@ Digunakan untuk Daily Task Notification System
 from datetime import datetime, date, timedelta
 from typing import List, Dict, Optional, Tuple
 from sqlalchemy import and_, or_
-from models import DailyTask
-from models import User
+from domains.task.models.task_models import DailyTask
+from domains.auth.models.auth_models import User
 from config.database import db
 import logging
 

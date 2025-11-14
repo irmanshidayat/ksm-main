@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.security import check_password_hash
-from models import User
+from domains.auth.models.auth_models import User
 from domains.auth.services.jwt_service import JWTService
 from config.database import db
 from shared.middlewares.role_auth import block_vendor, require_admin
@@ -138,7 +138,7 @@ def login():
         # Jika user adalah vendor, tambahkan informasi vendor
         if user.role == 'vendor' and user.vendor_id:
             try:
-                from models import Vendor
+                from domains.vendor.models.vendor_models import Vendor
                 vendor = Vendor.query.filter_by(id=user.vendor_id).first()
                 if vendor:
                     response_data['vendor'] = vendor.to_dict()

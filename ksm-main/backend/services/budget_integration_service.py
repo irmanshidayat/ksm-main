@@ -11,11 +11,11 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import logging
 
-from models import (
+from shared.models.budget_models import (
     BudgetTracking, BudgetTransaction, AnalysisConfig, RequestTimelineConfig
 )
-from models import RequestPembelian
-from models import Department
+from domains.inventory.models.request_pembelian_models import RequestPembelian
+from domains.role.models.role_models import Department
 
 logger = logging.getLogger(__name__)
 

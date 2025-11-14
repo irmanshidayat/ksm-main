@@ -48,7 +48,7 @@ class AuditTrailService:
                          additional_data: Dict = None) -> Dict:
         """Log user activity dengan best practices"""
         try:
-            from models import UserActivityLog
+            from shared.models.audit_models import UserActivityLog
             from config.database import db
             
             # Mask sensitive data
@@ -97,7 +97,7 @@ class AuditTrailService:
                         additional_data: Dict = None) -> Dict:
         """Log system event dengan best practices"""
         try:
-            from models import SystemEventLog
+            from shared.models.audit_models import SystemEventLog
             from config.database import db
             
             # Create system event log
@@ -139,7 +139,7 @@ class AuditTrailService:
                           additional_data: Dict = None) -> Dict:
         """Log security event dengan best practices"""
         try:
-            from models import SecurityEventLog
+            from shared.models.audit_models import SecurityEventLog
             from config.database import db
             
             # Create security event log
@@ -184,7 +184,7 @@ class AuditTrailService:
                        new_values: Dict = None, additional_data: Dict = None) -> Dict:
         """Log data change dengan best practices"""
         try:
-            from models import DataChangeLog
+            from shared.models.audit_models import DataChangeLog
             from config.database import db
             
             # Mask sensitive data
@@ -232,7 +232,7 @@ class AuditTrailService:
                           success: bool = True, failure_reason: str = None) -> Dict:
         """Log access attempt dengan best practices"""
         try:
-            from models import AccessLog
+            from shared.models.audit_models import AccessLog
             from config.database import db
             
             # Create access log
@@ -329,7 +329,7 @@ class AuditTrailService:
     def _check_failed_login_pattern(self, user_id: int, ip_address: str):
         """Check for failed login pattern"""
         try:
-            from models import SecurityEventLog
+            from shared.models.audit_models import SecurityEventLog
             
             # Check failed logins in last 15 minutes
             recent_failed_logins = SecurityEventLog.query.filter(
@@ -379,7 +379,7 @@ class AuditTrailService:
     def _check_suspicious_access(self, access_log):
         """Check for suspicious access patterns"""
         try:
-            from models import AccessLog
+            from shared.models.audit_models import AccessLog
             
             # Check for multiple failed access attempts
             recent_failed_access = AccessLog.query.filter(
@@ -404,7 +404,7 @@ class AuditTrailService:
                               severity: str, additional_data: Dict = None):
         """Create security alert"""
         try:
-            from models import SecurityAlert
+            from shared.models.audit_models import SecurityAlert
             from config.database import db
             
             alert = SecurityAlert(
@@ -486,7 +486,7 @@ class AuditTrailService:
                                end_date: datetime = None, limit: int = 100, offset: int = 0):
         """Get user activity logs"""
         try:
-            from models import UserActivityLog
+            from shared.models.audit_models import UserActivityLog
             
             query = UserActivityLog.query
             
@@ -512,7 +512,7 @@ class AuditTrailService:
                               limit: int = 100, offset: int = 0):
         """Get system event logs"""
         try:
-            from models import SystemEventLog
+            from shared.models.audit_models import SystemEventLog
             
             query = SystemEventLog.query
             
@@ -535,7 +535,7 @@ class AuditTrailService:
                                 end_date: datetime = None, limit: int = 100, offset: int = 0):
         """Get security event logs"""
         try:
-            from models import SecurityEventLog
+            from shared.models.audit_models import SecurityEventLog
             
             query = SecurityEventLog.query
             
@@ -561,7 +561,7 @@ class AuditTrailService:
                              end_date: datetime = None, limit: int = 100, offset: int = 0):
         """Get data change logs"""
         try:
-            from models import DataChangeLog
+            from shared.models.audit_models import DataChangeLog
             
             query = DataChangeLog.query
             
@@ -587,7 +587,7 @@ class AuditTrailService:
                         end_date: datetime = None, limit: int = 100, offset: int = 0):
         """Get access logs"""
         try:
-            from models import AccessLog
+            from shared.models.audit_models import AccessLog
             
             query = AccessLog.query
             
@@ -631,7 +631,7 @@ class AuditTrailService:
     def _generate_user_activity_report(self, start_date: datetime, end_date: datetime, filters: Dict):
         """Generate user activity report"""
         try:
-            from models import UserActivityLog
+            from shared.models.audit_models import UserActivityLog
             
             query = UserActivityLog.query.filter(
                 UserActivityLog.timestamp >= start_date,
@@ -673,7 +673,7 @@ class AuditTrailService:
     def _generate_security_events_report(self, start_date: datetime, end_date: datetime, filters: Dict):
         """Generate security events report"""
         try:
-            from models import SecurityEventLog
+            from shared.models.audit_models import SecurityEventLog
             
             query = SecurityEventLog.query.filter(
                 SecurityEventLog.timestamp >= start_date,
@@ -719,7 +719,7 @@ class AuditTrailService:
     def _generate_data_changes_report(self, start_date: datetime, end_date: datetime, filters: Dict):
         """Generate data changes report"""
         try:
-            from models import DataChangeLog
+            from shared.models.audit_models import DataChangeLog
             
             query = DataChangeLog.query.filter(
                 DataChangeLog.timestamp >= start_date,
@@ -765,7 +765,7 @@ class AuditTrailService:
     def _generate_access_patterns_report(self, start_date: datetime, end_date: datetime, filters: Dict):
         """Generate access patterns report"""
         try:
-            from models import AccessLog
+            from shared.models.audit_models import AccessLog
             
             query = AccessLog.query.filter(
                 AccessLog.timestamp >= start_date,
@@ -910,7 +910,7 @@ class AuditTrailService:
     def initialize_audit_tables(self):
         """Initialize audit tables - compatibility with audit_service"""
         try:
-            from models import AuditLog
+            from domains.role.models.role_models import AuditLog
             from config.database import db
             
             # Check if audit logs already exist
@@ -945,7 +945,7 @@ class AuditTrailService:
                    new_values: Dict = None, additional_info: Dict = None):
         """Log user action - compatibility with audit_service"""
         try:
-            from models import AuditLog
+            from domains.role.models.role_models import AuditLog
             
             # Get request information
             ip_address = self._get_client_ip()
@@ -1182,7 +1182,7 @@ class AuditTrailService:
                          action: str = None, resource_type: str = None) -> List[Dict]:
         """Get user activity logs - compatibility with audit_service"""
         try:
-            from models import AuditLog
+            from domains.role.models.role_models import AuditLog
             
             query = AuditLog.query.filter_by(user_id=user_id)
             
@@ -1203,7 +1203,7 @@ class AuditTrailService:
                            limit: int = 50) -> List[Dict]:
         """Get resource change history - compatibility with audit_service"""
         try:
-            from models import AuditLog
+            from domains.role.models.role_models import AuditLog
             logs = AuditLog.get_resource_history(resource_type, resource_id, limit)
             return [log.to_dict() for log in logs]
             
@@ -1214,7 +1214,7 @@ class AuditTrailService:
     def get_audit_statistics(self, days: int = 30) -> Dict:
         """Get audit statistics - compatibility with audit_service"""
         try:
-            from models import AuditLog
+            from domains.role.models.role_models import AuditLog
             from config.database import db
             from sqlalchemy import func
             
@@ -1271,7 +1271,7 @@ class AuditTrailService:
     def search_audit_logs(self, search_params: Dict) -> List[Dict]:
         """Search audit logs with filters - compatibility with audit_service"""
         try:
-            from models import AuditLog
+            from domains.role.models.role_models import AuditLog
             
             query = AuditLog.query
             
@@ -1341,7 +1341,7 @@ class AuditTrailService:
     def cleanup_old_logs_legacy(self, days: int = 365):
         """Clean up old audit logs - compatibility with audit_service"""
         try:
-            from models import AuditLog
+            from domains.role.models.role_models import AuditLog
             from config.database import db
             
             cutoff_date = datetime.utcnow() - timedelta(days=days)
@@ -1363,7 +1363,7 @@ class AuditTrailService:
     def get_security_alerts(self, days: int = 7) -> List[Dict]:
         """Get security alerts from audit logs - compatibility with audit_service"""
         try:
-            from models import AuditLog
+            from domains.role.models.role_models import AuditLog
             from config.database import db
             from sqlalchemy import func
             

@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import os
 from flask_jwt_extended import get_jwt_identity
-from models import UserEmailDomain
+from domains.email.models.email_models import UserEmailDomain
 from config.database import db
 
 logger = logging.getLogger(__name__)

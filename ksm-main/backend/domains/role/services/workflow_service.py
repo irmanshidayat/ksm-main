@@ -9,7 +9,7 @@ import logging
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
 from config.database import db
-from models import (
+from domains.role.models.role_models import (
     WorkflowTemplate, WorkflowInstance, Department, Role, UserRole
 )
 

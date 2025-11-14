@@ -11,7 +11,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from domains.auth.services.gmail_oauth_service import GmailOAuthService
 from config.database import db
-from models import User
+from domains.auth.models.auth_models import User
 
 logger = logging.getLogger(__name__)
 

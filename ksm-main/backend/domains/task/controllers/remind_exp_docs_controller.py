@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, asc
 from datetime import datetime, date, timedelta
 from config.database import db
-from models import RemindExpDocs, DocumentStatus
+from domains.task.models.task_models import RemindExpDocs, DocumentStatus
 from domains.task.services.remind_exp_docs_service import RemindExpDocsService
 from domains.notification.controllers.telegram_controller import TelegramController
 from shared.utils.logger import get_logger

@@ -17,7 +17,7 @@ from domains.vendor.services.vendor_management_service import VendorManagementSe
 from shared.utils.security_validator import security_validator
 from shared.utils.rate_limiter import upload_rate_limiter
 from config.upload_config import upload_config
-from models import VendorPenawaran
+from domains.vendor.models.vendor_models import VendorPenawaran
 
 logger = logging.getLogger(__name__)
 

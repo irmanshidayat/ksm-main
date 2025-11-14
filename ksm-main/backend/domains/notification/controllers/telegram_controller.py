@@ -5,7 +5,7 @@ Telegram Controller - Menangani pengaturan telegram bot dengan integrasi Agent A
 """
 
 from flask import Blueprint, request, jsonify
-from models import TelegramSettings
+from domains.knowledge.models.knowledge_models import TelegramSettings
 from config.database import db
 from datetime import datetime
 import logging

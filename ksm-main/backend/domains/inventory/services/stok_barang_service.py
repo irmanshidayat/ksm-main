@@ -9,7 +9,7 @@ from sqlalchemy import func, and_, or_
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
-from models import (
+from domains.inventory.models.inventory_models import (
     Barang, KategoriBarang, Supplier, StokBarang, 
     BarangMasuk, BarangKeluar
 )

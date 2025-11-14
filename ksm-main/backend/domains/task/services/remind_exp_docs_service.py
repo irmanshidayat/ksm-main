@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc, asc, func
 from datetime import datetime, date, timedelta
-from models import RemindExpDocs, DocumentStatus
+from domains.task.models.task_models import RemindExpDocs, DocumentStatus
 from shared.utils.logger import get_logger
 import pandas as pd
 import io

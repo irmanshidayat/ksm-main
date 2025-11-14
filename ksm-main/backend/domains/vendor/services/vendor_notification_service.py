@@ -11,9 +11,10 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import logging
 
-from models import (
-    Vendor, VendorNotification, RequestPembelian, VendorPenawaran
+from domains.vendor.models.vendor_models import (
+    Vendor, VendorNotification, VendorPenawaran
 )
+from domains.inventory.models.request_pembelian_models import RequestPembelian
 
 logger = logging.getLogger(__name__)
 
@@ -458,7 +459,7 @@ class VendorNotificationService:
         """Membuat notifikasi untuk admin tentang update order vendor"""
         try:
             # Get admin users (you might want to filter by role)
-            from models import User
+            from domains.auth.models.auth_models import User
             admin_users = self.db.query(User).filter(
                 User.role.in_(['admin', 'super_admin', 'manager'])
             ).all()
@@ -477,7 +478,7 @@ class VendorNotificationService:
                     message = f"Ada update dari vendor {vendor_name} untuk pesanan {order_number}."
                 
                 # Create notification for admin (using regular notification system)
-                from models import Notification
+                from domains.notification.models.notification_models import Notification
                 admin_notification = Notification(
                     user_id=admin.id,
                     type='vendor_order_update',

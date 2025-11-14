@@ -16,7 +16,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from config.database import db
 from config.config import Config
-from models import User
+from domains.auth.models.auth_models import User
 
 # Set environment variable to relax OAuth scope validation
 os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'

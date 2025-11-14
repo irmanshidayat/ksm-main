@@ -44,7 +44,7 @@ def create_request():
         # Get department_id from user's primary role if not provided
         if 'department_id' not in request_data and request_data.get('user_id'):
             try:
-                from models import UserRole, Role
+                from domains.role.models.role_models import UserRole, Role
                 user_role = UserRole.query.filter(
                     UserRole.user_id == request_data['user_id'],
                     UserRole.is_active == True,

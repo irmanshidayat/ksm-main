@@ -13,7 +13,7 @@ import logging
 from functools import wraps
 
 from config.database import db
-from models import Vendor
+from domains.vendor.models.vendor_models import Vendor
 from domains.vendor.services.vendor_management_service import VendorManagementService
 from domains.auth.services.vendor_auth_service import VendorAuthService
 from shared.utils.serialization import serialize_models

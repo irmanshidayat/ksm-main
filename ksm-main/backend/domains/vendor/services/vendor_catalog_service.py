@@ -13,9 +13,12 @@ import logging
 import csv
 import io
 
-from models import (
+from domains.vendor.models.vendor_models import (
     VendorPenawaran, VendorPenawaranItem, VendorPenawaranFile,
-    Vendor, VendorCategory, RequestPembelian, RequestPembelianItem
+    Vendor, VendorCategory
+)
+from domains.inventory.models.request_pembelian_models import (
+    RequestPembelian, RequestPembelianItem
 )
 
 logger = logging.getLogger(__name__)
@@ -190,7 +193,7 @@ class VendorCatalogService:
                 
                 # Add search in barang table if available
                 try:
-                    from models import Barang, KategoriBarang
+                    from domains.inventory.models.inventory_models import Barang, KategoriBarang
                     
                     # Search in barang nama_barang
                     barang_search_exists = self.db.query(Barang.id).join(
@@ -252,7 +255,7 @@ class VendorCatalogService:
             
             # Additional filters
             if filters.get('kategori'):
-                from models import Barang, KategoriBarang
+                from domains.inventory.models.inventory_models import Barang, KategoriBarang
                 kategori_subquery = self.db.query(RequestPembelianItem.id).join(
                     Barang, Barang.id == RequestPembelianItem.barang_id
                 ).join(
@@ -266,7 +269,7 @@ class VendorCatalogService:
                 )
             
             if filters.get('merek'):
-                from models import Barang
+                from domains.inventory.models.inventory_models import Barang
                 merek_subquery = self.db.query(RequestPembelianItem.id).join(
                     Barang, Barang.id == RequestPembelianItem.barang_id
                 ).filter(Barang.kode_barang == filters['merek']).subquery()
@@ -312,14 +315,14 @@ class VendorCatalogService:
                 order_column = VendorPenawaranItem.vendor_unit_price
             elif sort_by == 'kategori':
                 # For kategori sorting, we need to join with Barang and KategoriBarang
-                from models import Barang, KategoriBarang
+                from domains.inventory.models.inventory_models import Barang, KategoriBarang
                 query = query.join(Barang, Barang.id == RequestPembelianItem.barang_id).join(
                     KategoriBarang, KategoriBarang.id == Barang.kategori_id
                 )
                 order_column = KategoriBarang.nama_kategori
             elif sort_by == 'merek':
                 # For merek sorting, we need to join with Barang
-                from models import Barang
+                from domains.inventory.models.inventory_models import Barang
                 query = query.join(Barang, Barang.id == RequestPembelianItem.barang_id)
                 order_column = Barang.kode_barang
             elif sort_by == 'vendor':
@@ -360,7 +363,7 @@ class VendorCatalogService:
                     merek = None
                     if request_item.barang_id:
                         try:
-                            from models import Barang
+                            from domains.inventory.models.inventory_models import Barang
                             barang = self.db.query(Barang).filter(Barang.id == request_item.barang_id).first()
                             if barang:
                                 merek = barang.merk
@@ -781,7 +784,7 @@ class VendorCatalogService:
         """Mendapatkan daftar vendor untuk dropdown - vendor yang sudah submit penawaran"""
         try:
             # Get vendors that have submitted penawaran (vendor_penawaran)
-            from models import VendorPenawaran
+            from domains.vendor.models.vendor_models import VendorPenawaran
             
             vendors_with_penawaran = self.db.query(Vendor).join(
                 VendorPenawaran, Vendor.id == VendorPenawaran.vendor_id
@@ -995,8 +998,8 @@ class VendorCatalogService:
             reference_id = f"BULK_IMPORT_{datetime.now().strftime('%Y%m%d')}_{uuid.uuid4().hex[:6].upper()}"
 
             # Ambil user dan department default (gunakan record pertama yang tersedia)
-            from models import User
-            from models import Department
+            from domains.auth.models.auth_models import User
+            from domains.role.models.role_models import Department
             default_user = self.db.query(User).first()
             default_dept = self.db.query(Department).first()
 

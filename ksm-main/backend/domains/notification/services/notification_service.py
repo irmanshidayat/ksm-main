@@ -70,7 +70,8 @@ class NotificationService:
     def _send_immediate_notification(self, user_id: int, notification_data: Dict) -> Dict:
         """Send notification immediately"""
         try:
-            from models import Notification, db
+            from domains.notification.models.notification_models import Notification
+            from config.database import db
             
             # Create notification record
             notification = Notification(
@@ -207,7 +208,8 @@ class NotificationService:
     def mark_notification_read(self, notification_id: int, user_id: int) -> bool:
         """Mark notification as read"""
         try:
-            from models import Notification, db
+            from domains.notification.models.notification_models import Notification
+            from config.database import db
             
             notification = Notification.query.filter_by(
                 id=notification_id,
@@ -234,7 +236,7 @@ class NotificationService:
     def get_user_notifications(self, user_id: int, limit: int = 50, unread_only: bool = False) -> List[Dict]:
         """Get user notifications"""
         try:
-            from models import Notification
+            from domains.notification.models.notification_models import Notification
             
             query = Notification.query.filter_by(user_id=user_id)
             
@@ -254,7 +256,7 @@ class NotificationService:
     def get_unread_count(self, user_id: int) -> int:
         """Get unread notification count"""
         try:
-            from models import Notification
+            from domains.notification.models.notification_models import Notification
             
             count = Notification.query.filter_by(
                 user_id=user_id,
@@ -343,7 +345,7 @@ class NotificationBatchingService:
     def _is_user_active(self, user_id: int) -> bool:
         """Check apakah user sedang aktif"""
         try:
-            from models import UserActivity
+            from domains.notification.models.notification_models import UserActivity
             
             last_activity = UserActivity.query.filter_by(
                 user_id=user_id
@@ -362,7 +364,7 @@ class NotificationBatchingService:
     def _user_prefers_immediate(self, user_id: int, notification_type: str) -> bool:
         """Check user preferences untuk immediate notification"""
         try:
-            from models import NotificationPreference
+            from domains.notification.models.notification_models import NotificationPreference
             
             preference = NotificationPreference.query.filter_by(
                 user_id=user_id,
@@ -381,7 +383,7 @@ class NotificationBatchingService:
     def add_to_batch(self, user_id: int, notification_type: str, notification_data: Dict):
         """Add notification ke batch"""
         try:
-            from models import NotificationBatch, NotificationBatchItem, db
+            from domains.notification.models.notification_models import NotificationBatch, NotificationBatchItem, db
             
             # Get or create batch
             batch = self._get_or_create_batch(user_id, notification_type)
@@ -409,7 +411,7 @@ class NotificationBatchingService:
     def _get_or_create_batch(self, user_id: int, notification_type: str):
         """Get or create notification batch"""
         try:
-            from models import NotificationBatch, db
+            from domains.notification.models.notification_models import NotificationBatch, db
             
             # Check for existing active batch
             batch = NotificationBatch.query.filter_by(
@@ -444,7 +446,7 @@ class NotificationBatchingService:
     def process_batches(self):
         """Process notification batches yang sudah selesai"""
         try:
-            from models import NotificationBatch, db
+            from domains.notification.models.notification_models import NotificationBatch, db
             
             current_time = datetime.utcnow()
             
@@ -467,7 +469,7 @@ class NotificationBatchingService:
     def _send_batch_notification(self, batch):
         """Send batched notification"""
         try:
-            from models import NotificationBatchItem, Notification, db
+            from domains.notification.models.notification_models import NotificationBatchItem, Notification, db
             
             # Get all items in batch
             batch_items = NotificationBatchItem.query.filter_by(
@@ -571,7 +573,7 @@ class NotificationAnalyticsService:
     def track_notification_sent(self, notification_id: int, user_id: int, notification_type: str):
         """Track notification sent"""
         try:
-            from models import NotificationAnalytics, db
+            from domains.notification.models.notification_models import NotificationAnalytics, db
             
             analytics = NotificationAnalytics(
                 notification_id=notification_id,
@@ -589,7 +591,7 @@ class NotificationAnalyticsService:
     def track_notification_read(self, notification_id: int):
         """Track notification read"""
         try:
-            from models import NotificationAnalytics, db
+            from domains.notification.models.notification_models import NotificationAnalytics, db
             
             analytics = NotificationAnalytics.query.filter_by(
                 notification_id=notification_id
@@ -610,7 +612,7 @@ class NotificationAnalyticsService:
     def track_notification_clicked(self, notification_id: int):
         """Track notification clicked"""
         try:
-            from models import NotificationAnalytics, db
+            from domains.notification.models.notification_models import NotificationAnalytics, db
             
             analytics = NotificationAnalytics.query.filter_by(
                 notification_id=notification_id
@@ -632,7 +634,7 @@ class NotificationAnalyticsService:
                                department_id: int = None) -> Dict:
         """Get notification metrics"""
         try:
-            from models import NotificationAnalytics
+            from domains.notification.models.notification_models import NotificationAnalytics
             
             query = NotificationAnalytics.query.filter(
                 NotificationAnalytics.sent_at >= date_from,

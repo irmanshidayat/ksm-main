@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from config.database import db
-from models import (
+from domains.role.models.role_models import (
     Department, Role, Permission, RolePermission, UserRole, 
     PermissionTemplate, WorkflowTemplate, WorkflowInstance, AuditLog
 )
@@ -367,7 +367,7 @@ class RoleManagementController:
         """Assign role to user with business logic"""
         try:
             # Check if user exists
-            from models import User
+            from domains.auth.models.auth_models import User
             user = User.query.get(user_id)
             if not user:
                 return False, "User tidak ditemukan"

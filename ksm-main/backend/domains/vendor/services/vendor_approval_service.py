@@ -11,8 +11,8 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import logging
 
-from models import Vendor, VendorNotification
-from models import Notification
+from domains.vendor.models.vendor_models import Vendor, VendorNotification
+from domains.notification.models.notification_models import Notification
 
 logger = logging.getLogger(__name__)
 

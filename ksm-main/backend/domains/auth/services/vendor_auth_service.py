@@ -12,8 +12,8 @@ from datetime import datetime
 import logging
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from models import User
-from models import Vendor, VendorCategory, VendorPenawaran, VendorPenawaranFile
+from domains.auth.models.auth_models import User
+from domains.vendor.models.vendor_models import Vendor, VendorCategory, VendorPenawaran, VendorPenawaranFile
 from domains.auth.services.jwt_service import JWTService
 
 logger = logging.getLogger(__name__)
@@ -171,8 +171,8 @@ class VendorAuthService:
     def get_vendor_penawaran_history_paginated(self, vendor_id: int, page: int = 1, limit: int = 10, status_filter: str = 'all') -> dict:
         """Mendapatkan riwayat penawaran vendor dengan pagination dan filtering"""
         try:
-            from models.vendor_penawaran import VendorPenawaran
-            from models.request_pembelian import RequestPembelian
+            from domains.vendor.models.vendor_models import VendorPenawaran
+            from domains.inventory.models.request_pembelian_models import RequestPembelian
             from sqlalchemy import func
             
             # Base query

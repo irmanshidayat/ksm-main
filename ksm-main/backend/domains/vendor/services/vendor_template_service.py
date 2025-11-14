@@ -25,7 +25,7 @@ class VendorTemplateService:
         """Mendapatkan semua template yang tersedia"""
         try:
             # Get templates from database
-            from models import VendorTemplate
+            from domains.vendor.models.vendor_models import VendorTemplate
             templates = self.db.query(VendorTemplate).filter(
                 VendorTemplate.is_active == True
             ).order_by(VendorTemplate.category, VendorTemplate.name).all()
@@ -51,7 +51,7 @@ class VendorTemplateService:
     def get_templates_by_category(self, category: str) -> List[Dict[str, Any]]:
         """Mendapatkan template berdasarkan kategori"""
         try:
-            from models import VendorTemplate
+            from domains.vendor.models.vendor_models import VendorTemplate
             templates = self.db.query(VendorTemplate).filter(
                 VendorTemplate.category == category,
                 VendorTemplate.is_active == True
@@ -78,7 +78,7 @@ class VendorTemplateService:
     def get_template_by_id(self, template_id: int) -> Optional[Dict[str, Any]]:
         """Mendapatkan template berdasarkan ID"""
         try:
-            from models import VendorTemplate
+            from domains.vendor.models.vendor_models import VendorTemplate
             template = self.db.query(VendorTemplate).filter(
                 VendorTemplate.id == template_id,
                 VendorTemplate.is_active == True
@@ -104,7 +104,7 @@ class VendorTemplateService:
     def download_template(self, template_id: int) -> Optional[Dict[str, Any]]:
         """Download template dan update download count"""
         try:
-            from models import VendorTemplate
+            from domains.vendor.models.vendor_models import VendorTemplate
             template = self.db.query(VendorTemplate).filter(
                 VendorTemplate.id == template_id,
                 VendorTemplate.is_active == True
@@ -144,7 +144,7 @@ class VendorTemplateService:
     def get_template_categories(self) -> List[Dict[str, Any]]:
         """Mendapatkan daftar kategori template"""
         try:
-            from models import VendorTemplate
+            from domains.vendor.models.vendor_models import VendorTemplate
             categories = self.db.query(VendorTemplate.category).filter(
                 VendorTemplate.is_active == True
             ).distinct().all()
@@ -228,7 +228,7 @@ class VendorTemplateService:
     def create_default_templates(self) -> bool:
         """Membuat template default jika belum ada"""
         try:
-            from models import VendorTemplate
+            from domains.vendor.models.vendor_models import VendorTemplate
             
             # Check if templates already exist
             existing_count = self.db.query(VendorTemplate).count()

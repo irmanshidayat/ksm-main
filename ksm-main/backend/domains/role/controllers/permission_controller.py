@@ -9,7 +9,7 @@ from flask import request, jsonify
 from datetime import datetime
 from config.database import db
 from models.menu_models import Menu, MenuPermission, PermissionAuditLog
-from models import Role
+from domains.role.models.role_models import Role
 from shared.utils.logger import get_logger
 from shared.utils.validators import validate_request_data
 import json
@@ -507,7 +507,7 @@ class PermissionController:
                 }), 404
             
             # Check user permission through roles
-            from models import UserRole
+            from domains.role.models.role_models import UserRole
             
             user_roles = UserRole.query.filter_by(user_id=current_user_id).all()
             role_ids = [ur.role_id for ur in user_roles]

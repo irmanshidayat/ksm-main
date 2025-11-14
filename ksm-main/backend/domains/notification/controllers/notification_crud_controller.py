@@ -95,7 +95,8 @@ def mark_all_notifications_read():
     """Mark all notifications as read"""
     try:
         from flask_jwt_extended import get_jwt_identity
-        from models import Notification, db
+        from domains.notification.models.notification_models import Notification
+        from config.database import db
         
         user_id = get_jwt_identity()
         if not user_id:
@@ -151,7 +152,8 @@ def delete_notification(notification_id):
     """Delete notification"""
     try:
         from flask_jwt_extended import get_jwt_identity
-        from models import Notification, db
+        from domains.notification.models.notification_models import Notification
+        from config.database import db
         
         user_id = get_jwt_identity()
         if not user_id:
@@ -252,7 +254,7 @@ def get_notification_preferences():
     """Get user notification preferences"""
     try:
         from flask_jwt_extended import get_jwt_identity
-        from models import NotificationPreference
+        from domains.notification.models.notification_models import NotificationPreference
         
         user_id = get_jwt_identity()
         if not user_id:
@@ -275,7 +277,7 @@ def update_notification_preferences():
     """Update user notification preferences"""
     try:
         from flask_jwt_extended import get_jwt_identity
-        from models import NotificationPreference, db
+        from domains.notification.models.notification_models import NotificationPreference, db
         
         user_id = get_jwt_identity()
         if not user_id:

@@ -12,13 +12,18 @@ from datetime import datetime, timedelta
 import uuid
 import logging
 
-from models import (
-    RequestPembelian, RequestPembelianItem, VendorPenawaran, 
-    VendorPenawaranFile, VendorAnalysis, Vendor, VendorCategory
+from domains.inventory.models.request_pembelian_models import (
+    RequestPembelian, RequestPembelianItem
 )
-from models import BudgetTracking, BudgetTransaction, RequestTimelineConfig
-from models import Barang, StokBarang
-from models import Department
+from domains.vendor.models.vendor_models import (
+    VendorPenawaran, VendorPenawaranFile, VendorAnalysis, 
+    Vendor, VendorCategory
+)
+from shared.models.budget_models import (
+    BudgetTracking, BudgetTransaction, RequestTimelineConfig
+)
+from domains.inventory.models.inventory_models import Barang, StokBarang
+from domains.role.models.role_models import Department
 from domains.approval.models.approval_models import ApprovalWorkflow, ApprovalRequest
 
 logger = logging.getLogger(__name__)

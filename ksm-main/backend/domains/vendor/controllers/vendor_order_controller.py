@@ -36,7 +36,7 @@ def get_my_orders():
             }), 401
         
         # Get vendor_id from user_id using Vendor model
-        from models import Vendor
+        from domains.vendor.models.vendor_models import Vendor
         vendor = db.session.query(Vendor).filter(Vendor.user_id == user_id).first()
         if not vendor:
             return jsonify({
@@ -186,7 +186,7 @@ def confirm_order(order_id):
             }), 401
         
         # Get vendor_id from user_id using Vendor model
-        from models import Vendor
+        from domains.vendor.models.vendor_models import Vendor
         vendor = db.session.query(Vendor).filter(Vendor.user_id == user_id).first()
         if not vendor:
             return jsonify({
@@ -316,7 +316,7 @@ def get_order_statistics():
             }), 401
         
         # Get vendor_id from user_id using Vendor model
-        from models import Vendor
+        from domains.vendor.models.vendor_models import Vendor
         vendor = db.session.query(Vendor).filter(Vendor.user_id == user_id).first()
         if not vendor:
             return jsonify({

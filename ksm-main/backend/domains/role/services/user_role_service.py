@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 
 from config.database import db
-from models import UserRole, Role
+from domains.role.models.role_models import UserRole, Role
 
 
 class UserRoleService:

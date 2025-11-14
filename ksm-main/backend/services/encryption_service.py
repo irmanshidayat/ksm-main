@@ -120,7 +120,7 @@ class KeyManagementService:
             )
             
             # Create key record
-            from models import EncryptionKey
+            from shared.models.encryption_models import EncryptionKey
             key_record = EncryptionKey(
                 key_id=f"dept_{department_id}_v1",
                 department_id=department_id,
@@ -154,7 +154,7 @@ class KeyManagementService:
     def rotate_department_key(self, department_id: int, reason: str = 'scheduled') -> dict:
         """Rotate encryption key untuk department"""
         try:
-            from models import EncryptionKey, KeyRotationLog
+            from shared.models.encryption_models import EncryptionKey, KeyRotationLog
             from config.database import db
             
             # Get current active key
@@ -231,7 +231,7 @@ class KeyManagementService:
     def _re_encrypt_department_data(self, department_id: int, old_key_record, new_key_record):
         """Re-encrypt existing data dengan key baru"""
         try:
-            from models import EncryptedData
+            from shared.models.encryption_models import EncryptedData
             from config.database import db
             
             # Get all encrypted data for department
@@ -284,7 +284,7 @@ class KeyManagementService:
     def _count_affected_records(self, department_id: int) -> int:
         """Count affected records untuk department"""
         try:
-            from models import EncryptedData
+            from shared.models.encryption_models import EncryptedData
             return EncryptedData.query.filter_by(department_id=department_id).count()
         except Exception as e:
             logger.error(f"❌ Error counting affected records: {str(e)}")
@@ -298,7 +298,7 @@ class KeyManagementService:
     def create_key_backup(self, key_id: str, backup_type: str = 'full') -> dict:
         """Create backup untuk encryption key"""
         try:
-            from models import EncryptionKey, KeyBackup
+            from shared.models.encryption_models import EncryptionKey, KeyBackup
             from config.database import db
             
             # Get key to backup
@@ -360,7 +360,7 @@ class KeyManagementService:
     def verify_key_backup(self, backup_id: int) -> bool:
         """Verify backup integrity"""
         try:
-            from models import KeyBackup
+            from shared.models.encryption_models import KeyBackup
             from config.database import db
             
             backup = KeyBackup.query.get(backup_id)
@@ -405,7 +405,7 @@ class KeyManagementService:
     def recover_key(self, backup_id: int, recovery_reason: str) -> dict:
         """Recover key dari backup"""
         try:
-            from models import KeyBackup, EncryptionKey, KeyRecoveryLog
+            from shared.models.encryption_models import KeyBackup, EncryptionKey, KeyRecoveryLog
             from config.database import db
             
             backup = KeyBackup.query.get(backup_id)
@@ -472,8 +472,8 @@ class KeyManagementService:
     def get_key_rotation_schedule(self, department_id: int) -> dict:
         """Get key rotation schedule untuk department"""
         try:
-            from models import EncryptionKey
-            from models import Department
+            from shared.models.encryption_models import EncryptionKey
+            from domains.role.models.role_models import Department
             
             # Get department
             department = Department.query.get(department_id)
@@ -521,7 +521,7 @@ class DataEncryptionService:
     def encrypt_department_data(self, data: str, department_id: int) -> dict:
         """Encrypt data untuk department"""
         try:
-            from models import EncryptionKey, EncryptedData
+            from shared.models.encryption_models import EncryptionKey, EncryptedData
             from config.database import db
             
             # Get department key
@@ -565,7 +565,7 @@ class DataEncryptionService:
     def decrypt_department_data(self, encrypted_data_id: int) -> str:
         """Decrypt data untuk department"""
         try:
-            from models import EncryptedData, EncryptionKey
+            from shared.models.encryption_models import EncryptedData, EncryptionKey
             from config.database import db
             
             # Get encrypted data

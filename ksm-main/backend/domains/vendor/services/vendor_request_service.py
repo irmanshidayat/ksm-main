@@ -11,9 +11,11 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
 import logging
 
-from models import (
-    RequestPembelian, Vendor, VendorCategory, VendorPenawaran,
-    RequestPembelianItem, VendorPenawaranItem
+from domains.inventory.models.request_pembelian_models import (
+    RequestPembelian, RequestPembelianItem
+)
+from domains.vendor.models.vendor_models import (
+    Vendor, VendorCategory, VendorPenawaran, VendorPenawaranItem
 )
 
 logger = logging.getLogger(__name__)
@@ -119,7 +121,7 @@ class VendorRequestService:
                 
                 # Add barang information if available
                 if item.barang_id:
-                    from models import Barang, KategoriBarang
+                    from domains.inventory.models.inventory_models import Barang, KategoriBarang
                     barang = self.db.query(Barang).filter(Barang.id == item.barang_id).first()
                     if barang:
                         # Get kategori information
@@ -217,7 +219,7 @@ class VendorRequestService:
             
             # Get files if any
             try:
-                from models import VendorPenawaranFile
+                from domains.vendor.models.vendor_models import VendorPenawaranFile
                 files = self.db.query(VendorPenawaranFile).filter(
                     VendorPenawaranFile.vendor_penawaran_id == penawaran.id
                 ).all()
@@ -544,7 +546,7 @@ class VendorRequestService:
                 
                 # Add barang information if available
                 if item.barang_id:
-                    from models import Barang, KategoriBarang
+                    from domains.inventory.models.inventory_models import Barang, KategoriBarang
                     barang = self.db.query(Barang).filter(Barang.id == item.barang_id).first()
                     if barang:
                         # Get kategori information
@@ -923,7 +925,7 @@ class VendorRequestService:
             existing_penawaran.updated_at = datetime.utcnow()
             
             # Delete existing items
-            from models import VendorPenawaranItem
+            from domains.vendor.models.vendor_models import VendorPenawaranItem
             VendorPenawaranItem.query.filter_by(vendor_penawaran_id=existing_penawaran.id).delete()
             
             # Create new items
@@ -942,7 +944,7 @@ class VendorRequestService:
             
             # Handle files if provided
             if 'files' in penawaran_data and penawaran_data['files']:
-                from models import VendorPenawaranFile
+                from domains.vendor.models.vendor_models import VendorPenawaranFile
                 
                 # Delete existing files
                 VendorPenawaranFile.query.filter_by(vendor_penawaran_id=existing_penawaran.id).delete()

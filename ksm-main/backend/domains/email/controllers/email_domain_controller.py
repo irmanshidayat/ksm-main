@@ -8,7 +8,7 @@ import logging
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from domains.email.services.email_domain_service import EmailDomainService
-from models import UserEmailDomain
+from domains.email.models.email_models import UserEmailDomain
 from config.database import db
 
 logger = logging.getLogger(__name__)

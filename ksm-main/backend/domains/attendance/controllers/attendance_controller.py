@@ -16,7 +16,7 @@ from domains.attendance.services.attendance_service import attendance_service
 from domains.task.controllers.daily_task_controller import DailyTaskController
 from shared.middlewares.role_auth import require_admin, block_vendor
 from config.database import db
-from models import AttendanceRecord
+from domains.attendance.models.attendance_models import AttendanceRecord
 
 logger = logging.getLogger(__name__)
 
@@ -266,7 +266,7 @@ def get_attendance():
         if not user_id_int:
             # Untuk non-admin, hanya bisa lihat data sendiri
             # Admin bisa lihat semua dengan tidak mengirim user_id
-            from models import User
+            from domains.auth.models.auth_models import User
             current_user = User.query.get(current_user_id)
             if current_user and current_user.role != 'admin':
                 user_id_int = current_user_id
@@ -285,7 +285,7 @@ def get_attendance():
         
         # Tambahkan filter pencarian
         if search:
-            from models import User
+            from domains.auth.models.auth_models import User
             query = query.join(User, AttendanceRecord.user_id == User.id)
             search_term = f"%{search}%"
             query = query.filter(
@@ -997,7 +997,7 @@ def get_leave_requests():
     Ambil daftar leave requests dengan pagination
     """
     try:
-        from models import AttendanceLeave
+        from domains.attendance.models.attendance_models import AttendanceLeave
         
         # Parse query parameters
         user_id = request.args.get('user_id')
@@ -1013,7 +1013,7 @@ def get_leave_requests():
         
         # Jika tidak ada user_id yang di-spesifikasi, default ke current user
         if not user_id:
-            from models import User
+            from domains.auth.models.auth_models import User
             current_user = User.query.get(current_user_id)
             if current_user and current_user.role != 'admin':
                 user_id = str(current_user_id)
@@ -1066,7 +1066,7 @@ def get_overtime_requests():
     Ambil daftar overtime requests
     """
     try:
-        from models import OvertimeRequest
+        from domains.attendance.models.attendance_models import OvertimeRequest
         
         # Parse query parameters
         user_id = request.args.get('user_id')

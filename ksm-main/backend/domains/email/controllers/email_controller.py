@@ -13,7 +13,7 @@ from flask import Blueprint, request, jsonify, current_app, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from domains.email.services.email_service import EmailService
 from config.database import db
-from models import Vendor, VendorPenawaran, VendorPenawaranItem
+from domains.vendor.models.vendor_models import Vendor, VendorPenawaran, VendorPenawaranItem
 from models.email_attachment_model import EmailAttachment
 
 logger = logging.getLogger(__name__)

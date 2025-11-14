@@ -14,11 +14,11 @@ import json
 from io import BytesIO
 
 from config.database import db
-from models import (
+from domains.attendance.models.attendance_models import (
     AttendanceRecord, AttendanceLeave, OvertimeRequest, AttendanceSettings
 )
-from models import User
-from models import Department, UserRole, Role
+from domains.auth.models.auth_models import User
+from domains.role.models.role_models import Department, UserRole, Role
 
 # Import untuk export
 try:
@@ -206,7 +206,7 @@ class AttendanceService:
             
             # Update attendance_id di daily tasks
             try:
-                from models import DailyTask
+                from domains.task.models.task_models import DailyTask
                 DailyTask.query.filter(
                     DailyTask.user_id == user_id,
                     DailyTask.task_date == today,

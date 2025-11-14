@@ -33,7 +33,7 @@ def get_menu_visibility_matrix():
     """Get menu visibility matrix (show_in_sidebar) for all roles"""
     try:
         from models.menu_models import Menu, MenuPermission
-        from models import Role
+        from domains.role.models.role_models import Role
         from config.database import db
         
         # Get all active menus
