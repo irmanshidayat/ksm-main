@@ -218,27 +218,57 @@ jobs:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}
         run: |
           ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} << EOF
+            set -e
             cd $DEPLOY_PATH
             
             # Stop existing containers
+            echo "🛑 Stopping existing containers..."
             docker-compose -f docker-compose.yml down || true
             
+            # Check if .env file exists
+            if [ ! -f .env ]; then
+              echo "⚠️  Warning: .env file not found. Creating from example..."
+              if [ -f env.dev.example ]; then
+                cp env.dev.example .env
+                echo "✅ Created .env from env.dev.example"
+              else
+                echo "⚠️  env.dev.example not found. Services may fail without proper configuration."
+              fi
+            fi
+            
             # Build and start services
-            docker-compose -f docker-compose.yml build --no-cache
+            echo "🔨 Building Docker images..."
+            docker-compose -f docker-compose.yml build --no-cache || {
+              echo "❌ Build failed! Showing logs..."
+              docker-compose -f docker-compose.yml logs --tail=50
+              exit 1
+            }
             
             # Start services
-            docker-compose -f docker-compose.yml up -d
+            echo "🚀 Starting services..."
+            docker-compose -f docker-compose.yml up -d || {
+              echo "❌ Failed to start services! Showing logs..."
+              docker-compose -f docker-compose.yml logs --tail=50
+              exit 1
+            }
             
             # Wait for services to be healthy
-            echo "Waiting for services to start..."
-            sleep 30
+            echo "⏳ Waiting for services to start (60 seconds)..."
+            sleep 60
             
             # Check service status
+            echo "📊 Service status:"
             docker-compose -f docker-compose.yml ps
             
-            # Health check
-            echo "Checking service health..."
-            docker-compose -f docker-compose.yml ps --filter "health=healthy" || true
+            # Show any failed containers
+            FAILED_CONTAINERS=\$(docker-compose -f docker-compose.yml ps | grep -E "(Exit|Restarting|unhealthy)" || true)
+            if [ -n "\$FAILED_CONTAINERS" ]; then
+              echo "⚠️  Some containers have issues:"
+              echo "\$FAILED_CONTAINERS"
+              echo ""
+              echo "📋 Showing logs for failed containers:"
+              docker-compose -f docker-compose.yml logs --tail=100
+            fi
           EOF
 
       - name: Verify deployment
@@ -248,14 +278,50 @@ jobs:
           ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} << EOF
             cd $DEPLOY_PATH
             
+            # Get container status
+            CONTAINER_STATUS=\$(docker-compose -f docker-compose.yml ps)
+            echo "📊 Current container status:"
+            echo "\$CONTAINER_STATUS"
+            echo ""
+            
+            # Count running containers
+            RUNNING_COUNT=\$(echo "\$CONTAINER_STATUS" | grep -c "Up" || echo "0")
+            TOTAL_COUNT=\$(echo "\$CONTAINER_STATUS" | grep -v "NAME" | grep -v "^--" | wc -l || echo "0")
+            
+            echo "Running containers: \$RUNNING_COUNT / \$TOTAL_COUNT"
+            echo ""
+            
             # Check if containers are running
-            if docker-compose -f docker-compose.yml ps | grep -q "Up"; then
-              echo "✅ Deployment successful! Services are running."
+            if [ "\$RUNNING_COUNT" -gt 0 ]; then
+              echo "✅ Deployment successful! \$RUNNING_COUNT service(s) are running."
+              echo ""
+              echo "📋 Service details:"
               docker-compose -f docker-compose.yml ps
+              
+              # Show any non-running containers
+              NON_RUNNING=\$(echo "\$CONTAINER_STATUS" | grep -v "Up" | grep -v "NAME" | grep -v "^--" || true)
+              if [ -n "\$NON_RUNNING" ]; then
+                echo ""
+                echo "⚠️  Some services are not running:"
+                echo "\$NON_RUNNING"
+                echo ""
+                echo "📋 Logs for non-running services:"
+                docker-compose -f docker-compose.yml logs --tail=50
+              fi
             else
-              echo "❌ Deployment failed! Some services are not running."
+              echo "❌ Deployment failed! No services are running."
+              echo ""
+              echo "📋 All container status:"
               docker-compose -f docker-compose.yml ps
-              docker-compose -f docker-compose.yml logs --tail=50
+              echo ""
+              echo "📋 Recent logs:"
+              docker-compose -f docker-compose.yml logs --tail=100
+              echo ""
+              echo "🔍 Checking for common issues:"
+              echo "  - .env file: \$([ -f .env ] && echo '✅ exists' || echo '❌ missing')"
+              echo "  - Docker compose file: \$([ -f docker-compose.yml ] && echo '✅ exists' || echo '❌ missing')"
+              echo "  - Disk space:"
+              df -h | head -2
               exit 1
             fi
           EOF
