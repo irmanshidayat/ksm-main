@@ -29,7 +29,7 @@ class NotificationScheduler:
     def start(self):
         """Mulai scheduler"""
         if self.running:
-            logger.warning("⚠️ Notification scheduler already running")
+            logger.warning("[WARNING] Notification scheduler already running")
             return
         
         self.running = True
@@ -38,7 +38,7 @@ class NotificationScheduler:
         self._schedule_deadline_check()
         self._schedule_cleanup()
         
-        logger.info("✅ Notification scheduler started")
+        logger.info("[SUCCESS] Notification scheduler started")
     
     def stop(self):
         """Hentikan scheduler"""
@@ -65,7 +65,7 @@ class NotificationScheduler:
             with current_app.app_context():
                 self.check_deadline_warnings()
         except Exception as e:
-            logger.error(f"❌ Error in deadline check: {str(e)}")
+            logger.error(f"[ERROR] Error in deadline check: {str(e)}")
         
         # Schedule next check in 1 hour
         self.deadline_timer = Timer(3600, self._schedule_deadline_check)
@@ -82,7 +82,7 @@ class NotificationScheduler:
             with current_app.app_context():
                 self.cleanup_old_notifications()
         except Exception as e:
-            logger.error(f"❌ Error in cleanup: {str(e)}")
+            logger.error(f"[ERROR] Error in cleanup: {str(e)}")
         
         # Schedule next cleanup in 6 hours
         self.cleanup_timer = Timer(21600, self._schedule_cleanup)
@@ -92,34 +92,34 @@ class NotificationScheduler:
     def check_deadline_warnings(self):
         """Cek dan kirim notifikasi peringatan deadline"""
         try:
-            logger.info("🔔 Checking deadline warnings...")
+            logger.info("[NOTIF] Checking deadline warnings...")
             
             notification_service = VendorNotificationService(db.session)
             notifications_created = notification_service.create_deadline_warning_notifications()
             
             if notifications_created > 0:
-                logger.info(f"✅ Created {notifications_created} deadline warning notifications")
+                logger.info(f"[SUCCESS] Created {notifications_created} deadline warning notifications")
             else:
-                logger.info("ℹ️ No deadline warnings needed")
+                logger.info("[INFO] No deadline warnings needed")
                 
         except Exception as e:
-            logger.error(f"❌ Error checking deadline warnings: {str(e)}")
+            logger.error(f"[ERROR] Error checking deadline warnings: {str(e)}")
     
     def cleanup_old_notifications(self):
         """Hapus notifikasi lama"""
         try:
-            logger.info("🧹 Cleaning up old notifications...")
+            logger.info("[CLEANUP] Cleaning up old notifications...")
             
             notification_service = VendorNotificationService(db.session)
             deleted_count = notification_service.cleanup_old_notifications(days_old=30)
             
             if deleted_count > 0:
-                logger.info(f"✅ Cleaned up {deleted_count} old notifications")
+                logger.info(f"[SUCCESS] Cleaned up {deleted_count} old notifications")
             else:
-                logger.info("ℹ️ No old notifications to clean up")
+                logger.info("[INFO] No old notifications to clean up")
                 
         except Exception as e:
-            logger.error(f"❌ Error cleaning up old notifications: {str(e)}")
+            logger.error(f"[ERROR] Error cleaning up old notifications: {str(e)}")
     
     def send_immediate_notification(self, vendor_id: int, title: str, message: str, 
                                   notification_type: str, related_request_id: int = None,
@@ -137,14 +137,14 @@ class NotificationScheduler:
             )
             
             if notification:
-                logger.info(f"✅ Immediate notification sent to vendor {vendor_id}: {title}")
+                logger.info(f"[SUCCESS] Immediate notification sent to vendor {vendor_id}: {title}")
                 return True
             else:
-                logger.error(f"❌ Failed to send immediate notification to vendor {vendor_id}")
+                logger.error(f"[ERROR] Failed to send immediate notification to vendor {vendor_id}")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Error sending immediate notification: {str(e)}")
+            logger.error(f"[ERROR] Error sending immediate notification: {str(e)}")
             return False
     
     def get_scheduler_status(self):

@@ -248,7 +248,7 @@ class UnifiedDocumentProcessingService:
             'start_time': None
         }
         
-        logger.info("🚀 Unified Document Processing Service initialized")
+        logger.info("[INIT] Unified Document Processing Service initialized")
     
     def _get_executor(self) -> ThreadPoolExecutor:
         """Get thread pool executor"""
@@ -663,7 +663,7 @@ class UnifiedDocumentProcessingService:
             if self._executor is None:
                 self._executor = ThreadPoolExecutor(max_workers=self.max_workers, thread_name_prefix="doc-process-worker")
                 self.stats['start_time'] = datetime.now()
-                logger.info(f"✅ Started document processor with {self.max_workers} workers")
+                logger.info(f"[SUCCESS] Started document processor with {self.max_workers} workers")
             else:
                 logger.warning("⚠️ Processor already running")
         except Exception as e:

@@ -66,8 +66,8 @@ class UnifiedEmbeddingService:
         # Initialize services
         self._init_services()
         
-        logger.info(f"🚀 Unified Embedding Service initialized")
-        logger.info(f"📊 Configuration: provider={self.provider}, model={self.model_name}, dim={self.embedding_dim}")
+        logger.info(f"[INIT] Unified Embedding Service initialized")
+        logger.info(f"[CONFIG] Configuration: provider={self.provider}, model={self.model_name}, dim={self.embedding_dim}")
     
     def _init_configuration(self):
         """Initialize service configuration"""
@@ -108,7 +108,7 @@ class UnifiedEmbeddingService:
             from .openai_embedding_service import get_openai_embedding_service
             self.openai_service = get_openai_embedding_service()
             if self.openai_service.is_available():
-                logger.info("✅ OpenAI embedding service initialized")
+                logger.info("[SUCCESS] OpenAI embedding service initialized")
             else:
                 logger.warning("⚠️ OpenAI service not available (missing API key or library)")
                 self.openai_service = None
@@ -125,7 +125,7 @@ class UnifiedEmbeddingService:
         try:
             from .qdrant_service import get_qdrant_fallback_service
             self.qdrant_service = get_qdrant_fallback_service()
-            logger.info("✅ Qdrant service initialized for embeddings")
+            logger.info("[SUCCESS] Qdrant service initialized for embeddings")
         except Exception as e:
             logger.warning(f"⚠️ Qdrant service not available: {e}")
             self.qdrant_service = None

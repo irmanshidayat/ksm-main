@@ -52,8 +52,8 @@ class OpenAIEmbeddingService:
         # Initialize OpenAI client
         self._init_openai_client()
         
-        logger.info(f"🚀 OpenAI Embedding Service initialized")
-        logger.info(f"📊 Configuration: model={self.model_name}, dim={self.embedding_dim}")
+        logger.info(f"[INIT] OpenAI Embedding Service initialized")
+        logger.info(f"[CONFIG] Configuration: model={self.model_name}, dim={self.embedding_dim}")
     
     def _init_configuration(self):
         """Initialize service configuration"""
@@ -85,7 +85,7 @@ class OpenAIEmbeddingService:
         
         try:
             self.client = openai.OpenAI(api_key=self.api_key)
-            logger.info("✅ OpenAI client initialized successfully")
+            logger.info("[SUCCESS] OpenAI client initialized successfully")
         except Exception as e:
             logger.error(f"❌ Failed to initialize OpenAI client: {e}")
             self.client = None

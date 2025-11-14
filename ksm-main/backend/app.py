@@ -5,6 +5,22 @@ KSM Main Backend - Entry Point (Refactored)
 Menggunakan app_factory untuk struktur yang lebih clean dan modular
 """
 
+import sys
+import os
+
+# Fix encoding untuk Windows console (cp1252 -> utf-8)
+if sys.platform == 'win32':
+    try:
+        # Reconfigure stdout dan stderr untuk UTF-8
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        if hasattr(sys.stderr, 'reconfigure'):
+            sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+        # Set environment variable untuk Python
+        os.environ['PYTHONIOENCODING'] = 'utf-8'
+    except Exception:
+        pass  # Fallback jika reconfigure tidak support
+
 import logging
 from core.app_factory import create_app
 

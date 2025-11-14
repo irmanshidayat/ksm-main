@@ -141,7 +141,7 @@ def create_app():
          send_wildcard=False,
          vary_header=True)
     
-    logger.info(f"🌐 CORS Configuration loaded - Allowed origins: {Config.CORS_ORIGINS}")
+    logger.info(f"[CORS] Configuration loaded - Allowed origins: {Config.CORS_ORIGINS}")
     
     # Register domain routes
     register_auth_routes(app)

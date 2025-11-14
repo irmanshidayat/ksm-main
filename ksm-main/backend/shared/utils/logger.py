@@ -32,14 +32,20 @@ def get_logger(name):
             datefmt='%Y-%m-%d %H:%M:%S'
         )
         
-        # Setup console handler
+        # Setup console handler dengan UTF-8 encoding untuk support emoji
         console_handler = logging.StreamHandler(sys.stdout)
+        # Set encoding ke UTF-8 untuk console output
+        if hasattr(console_handler.stream, 'reconfigure'):
+            try:
+                console_handler.stream.reconfigure(encoding='utf-8', errors='replace')
+            except Exception:
+                pass  # Fallback jika reconfigure tidak support
         console_handler.setFormatter(formatter)
         console_handler.setLevel(logging.INFO)
         
-        # Setup file handler dengan path yang benar
+        # Setup file handler dengan path yang benar dan UTF-8 encoding
         log_file = os.path.join(os.getcwd(), 'ksm_backend.log')
-        file_handler = logging.FileHandler(log_file)
+        file_handler = logging.FileHandler(log_file, encoding='utf-8', errors='replace')
         file_handler.setFormatter(formatter)
         file_handler.setLevel(logging.DEBUG)
         

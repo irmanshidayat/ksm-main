@@ -293,7 +293,7 @@ class VendorNotificationService:
                         if notification:
                             notifications_created += 1
             
-            logger.info(f"✅ Created {notifications_created} deadline warning notifications")
+            logger.info(f"[SUCCESS] Created {notifications_created} deadline warning notifications")
             return notifications_created
             
         except Exception as e:
@@ -397,7 +397,7 @@ class VendorNotificationService:
             
             self.db.commit()
             
-            logger.info(f"✅ Cleaned up {deleted_count} old notifications")
+            logger.info(f"[SUCCESS] Cleaned up {deleted_count} old notifications")
             return deleted_count
             
         except Exception as e:

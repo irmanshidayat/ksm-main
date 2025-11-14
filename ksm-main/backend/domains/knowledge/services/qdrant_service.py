@@ -57,7 +57,7 @@ class QdrantService:
         # Initialize services
         self._init_qdrant()
         
-        logger.info("🚀 Qdrant Service initialized successfully")
+        logger.info("[INIT] Qdrant Service initialized successfully")
     
     def is_available(self) -> bool:
         """Check apakah Qdrant tersedia"""
@@ -84,7 +84,7 @@ class QdrantService:
             
             # Test connection
             collections = self.client.get_collections()
-            logger.info(f"✅ Qdrant client initialized successfully. Found {len(collections.collections)} collections")
+            logger.info(f"[SUCCESS] Qdrant client initialized successfully. Found {len(collections.collections)} collections")
             
         except Exception as e:
             logger.warning(f"Failed to initialize Qdrant client: {e}")

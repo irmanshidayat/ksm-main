@@ -233,7 +233,7 @@ class VendorTemplateService:
             # Check if templates already exist
             existing_count = self.db.query(VendorTemplate).count()
             if existing_count > 0:
-                logger.info("✅ Templates already exist, skipping creation")
+                logger.info("[SUCCESS] Templates already exist, skipping creation")
                 return True
             
             # Create default templates
