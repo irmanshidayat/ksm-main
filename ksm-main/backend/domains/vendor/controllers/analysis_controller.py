@@ -13,7 +13,7 @@ import logging
 
 from config.database import db
 from domains.vendor.services.vendor_analysis_service import VendorAnalysisService
-from services.budget_integration_service import BudgetIntegrationService
+from domains.inventory.services.budget_integration_service import BudgetIntegrationService
 from shared.utils.serialization import serialize_models
 
 logger = logging.getLogger(__name__)

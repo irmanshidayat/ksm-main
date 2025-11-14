@@ -15,7 +15,7 @@ import os
 from domains.notification.services.telegram_integration_service import telegram_integration, telegram_webhook
 # telegram_rag_service removed - using Agent AI directly
 # TelegramSettings sudah diimport di atas
-from services.agent_ai_sync_service import agent_ai_sync
+from domains.integration.services.agent_ai_sync_service import agent_ai_sync
 from shared.middlewares.api_auth import jwt_required_custom
 from shared.middlewares.role_auth import block_vendor
 from config.config import Config

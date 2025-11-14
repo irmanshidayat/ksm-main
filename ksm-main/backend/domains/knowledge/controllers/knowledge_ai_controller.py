@@ -12,7 +12,7 @@ import traceback
 from datetime import datetime
 from sqlalchemy import text
 # unified_ai_service removed - using Agent AI directly
-from services.agent_ai_sync_service import agent_ai_sync
+from domains.integration.services.agent_ai_sync_service import agent_ai_sync
 
 # Initialize blueprint
 knowledge_ai_bp = Blueprint('knowledge_ai', __name__)

@@ -48,7 +48,7 @@ except ImportError:
     QDRANT_AVAILABLE = False
 
 try:
-    from services.agent_ai_sync_service import AgentAISyncService
+    from domains.integration.services.agent_ai_sync_service import AgentAISyncService
     AGENT_AI_SYNC_AVAILABLE = True
 except ImportError:
     AGENT_AI_SYNC_AVAILABLE = False

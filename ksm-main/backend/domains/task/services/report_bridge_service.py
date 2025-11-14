@@ -11,7 +11,7 @@ import logging
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, date
 from config.config import Config
-from services.task_query_service import task_query_service
+from domains.task.services.task_query_service import task_query_service
 
 logger = logging.getLogger(__name__)
 

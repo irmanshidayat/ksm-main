@@ -12,8 +12,8 @@ import logging
 from shared.middlewares.api_auth import jwt_required_custom
 from shared.middlewares.role_auth import require_admin
 from domains.task.schedulers.daily_task_scheduler import daily_task_scheduler
-from services.task_query_service import task_query_service
-from services.report_bridge_service import report_bridge_service
+from domains.task.services.task_query_service import task_query_service
+from domains.task.services.report_bridge_service import report_bridge_service
 from domains.notification.services.telegram_sender_service import telegram_sender_service
 
 logger = logging.getLogger(__name__)

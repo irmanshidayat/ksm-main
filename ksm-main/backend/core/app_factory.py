@@ -53,7 +53,7 @@ from domains.approval.routes import register_approval_routes
 # Import services
 from domains.monitoring.services.unified_monitoring_service import get_monitoring_service
 from shared.services.intelligent_cache_service import get_intelligent_cache_service
-from services.advanced_context_builder import get_advanced_context_builder
+from domains.knowledge.services.advanced_context_builder import get_advanced_context_builder
 
 # Import middlewares
 from shared.middlewares.api_auth import jwt_required_custom

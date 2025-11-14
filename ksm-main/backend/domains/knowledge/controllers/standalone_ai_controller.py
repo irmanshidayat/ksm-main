@@ -15,8 +15,22 @@ logger = logging.getLogger(__name__)
 
 def safe_import_service(service_name, function_name):
     """Safe import service dengan fallback untuk relative import"""
+    # Mapping service name ke domain path
+    service_mapping = {
+        "smart_routing_service": "domains.knowledge.services.smart_routing_service",
+        "enhanced_ai_service": "services.enhanced_ai_service"  # Keep for backward compatibility
+    }
+    
+    # Try domain import first
+    if service_name in service_mapping:
+        try:
+            module = __import__(service_mapping[service_name], fromlist=[function_name])
+            return getattr(module, function_name)
+        except ImportError:
+            pass
+    
+    # Try absolute import from services (for backward compatibility)
     try:
-        # Try absolute import first
         module = __import__(f"services.{service_name}", fromlist=[function_name])
         return getattr(module, function_name)
     except ImportError:

@@ -13,8 +13,8 @@ from apscheduler.triggers.date import DateTrigger
 from apscheduler.jobstores.base import JobLookupError
 import pytz
 from config.config import Config
-from services.task_query_service import task_query_service
-from services.report_bridge_service import report_bridge_service
+from domains.task.services.task_query_service import task_query_service
+from domains.task.services.report_bridge_service import report_bridge_service
 from domains.notification.services.telegram_sender_service import telegram_sender_service
 
 logger = logging.getLogger(__name__)

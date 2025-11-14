@@ -39,7 +39,7 @@ class TelegramIntegrationService:
         
         # Agent AI Sync Service untuk health check dan forward
         try:
-            from services.agent_ai_sync_service import agent_ai_sync
+            from domains.integration.services.agent_ai_sync_service import agent_ai_sync
             self.agent_ai_sync = agent_ai_sync
             logger.info("[SUCCESS] Agent AI Sync Service imported for Telegram integration")
         except ImportError as e:

@@ -274,6 +274,48 @@ class AgentAISyncService:
                 'timestamp': datetime.now().isoformat()
             }
     
+    def send_message_to_agent(self, user_id: int, message: str, session_id: str = None) -> Dict[str, Any]:
+        """Send message ke Agent AI (simplified interface)"""
+        try:
+            # Prepare data untuk Agent AI
+            chat_data = {
+                'user_id': user_id,
+                'message': message,
+                'session_id': session_id or f'ksm_main_{user_id}',
+                'source': 'KSM_main'
+            }
+            
+            start_time = time.time()
+            response = requests.post(
+                f"{self.agent_ai_url}/api/telegram/chat",
+                json=chat_data,
+                timeout=30
+            )
+            response_time = time.time() - start_time
+            
+            if response.status_code == 200:
+                result = response.json()
+                return {
+                    'success': True,
+                    'data': result.get('data', {}),
+                    'response_time': round(response_time, 3),
+                    'timestamp': datetime.now().isoformat()
+                }
+            else:
+                return {
+                    'success': False,
+                    'message': f'Agent AI error: {response.status_code}',
+                    'response_time': round(response_time, 3),
+                    'timestamp': datetime.now().isoformat()
+                }
+                
+        except Exception as e:
+            return {
+                'success': False,
+                'message': f'Error: {str(e)}',
+                'timestamp': datetime.now().isoformat()
+            }
+    
     def send_rag_enhanced_message(self, user_id: int, message: str, context: Dict[str, Any], 
                                  session_id: str = None, company_id: str = None) -> Dict[str, Any]:
         """Send message ke Agent AI dengan RAG context"""
@@ -436,3 +478,8 @@ class AgentAISyncService:
 
 # Global instance
 agent_ai_sync = AgentAISyncService()
+
+def get_agent_ai_sync_service() -> AgentAISyncService:
+    """Get global Agent AI sync service instance"""
+    return agent_ai_sync
+

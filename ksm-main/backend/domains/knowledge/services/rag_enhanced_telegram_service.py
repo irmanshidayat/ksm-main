@@ -14,7 +14,7 @@ from typing import Dict, Any, List, Optional, Tuple
 import threading
 
 # Import existing services (tanpa unified_rag_service; gunakan qdrant_service langsung)
-from services.agent_ai_sync_service import agent_ai_sync
+from domains.integration.services.agent_ai_sync_service import agent_ai_sync
 from .telegram_integration_service import telegram_integration
 from .qdrant_service import get_qdrant_service
 from .openai_embedding_service import OpenAIEmbeddingService

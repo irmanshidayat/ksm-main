@@ -21,7 +21,7 @@ class SmartRoutingService:
         # Import services
         try:
             # unified_ai_service removed - using Agent AI directly
-            from agent_ai_sync_service import get_agent_ai_sync_service
+            from domains.integration.services.agent_ai_sync_service import get_agent_ai_sync_service
             
             self.standalone_service = None  # Removed
             self.agent_ai_service = get_agent_ai_sync_service()
@@ -37,7 +37,7 @@ class SmartRoutingService:
                     sys.path.append(current_dir)
                 
                 # unified_ai_service removed - using Agent AI directly
-                from agent_ai_sync_service import get_agent_ai_sync_service
+                from domains.integration.services.agent_ai_sync_service import get_agent_ai_sync_service
                 
                 self.standalone_service = None  # Removed
                 self.agent_ai_service = get_agent_ai_sync_service()
