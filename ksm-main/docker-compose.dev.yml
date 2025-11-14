@@ -88,10 +88,11 @@ services:
       - QDRANT__SERVICE__HTTP_PORT=6333
       - QDRANT__SERVICE__GRPC_PORT=6334
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:6333/"]
       timeout: 10s
       retries: 5
       interval: 30s
+      start_period: 10s
 
   # Agent AI Service untuk Development
   agent-ai-dev:

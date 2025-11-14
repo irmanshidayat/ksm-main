@@ -45,11 +45,22 @@ def get_users():
             'error': 'Terjadi kesalahan saat mengambil data users'
         }), 500
 
-@auth_bp.route('/auth/login', methods=['POST'])
+@auth_bp.route('/auth/login', methods=['POST', 'OPTIONS'])
 def login():
     """
     Login endpoint dengan JWT token - Support untuk user biasa dan vendor
     """
+    # Handle OPTIONS request untuk CORS preflight
+    if request.method == 'OPTIONS':
+        from flask import make_response
+        response = make_response('', 200)
+        response.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-API-Key, Cache-Control, Accept, Origin, X-Requested-With'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Max-Age'] = '3600'
+        return response
+    
     try:
         # Debug logging untuk melihat request yang masuk
         logger.info(f"🔍 Login request received from {request.remote_addr}")
@@ -168,7 +179,13 @@ def login():
             except Exception as e:
                 logger.warning(f"⚠️ Could not fetch vendor info: {str(e)}")
         
-        return jsonify(response_data), 200
+        # Create response dengan CORS headers
+        response = jsonify(response_data)
+        origin = request.headers.get('Origin')
+        if origin:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response, 200
         
     except Exception as e:
         logger.error(f"❌ Login error: {str(e)}")
