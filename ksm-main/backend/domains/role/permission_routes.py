@@ -332,19 +332,31 @@ def check_user_permission():
 @jwt_required_custom
 def get_user_accessible_menus():
     """Get all menus accessible by current user"""
-    # Handle preflight CORS
+    # Handle preflight CORS (akan ditangani oleh jwt_required_custom decorator)
+    # Tapi kita tetap handle di sini untuk memastikan
     if request.method == 'OPTIONS':
-        return '', 200
+        from flask import make_response
+        response = make_response('', 200)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, x-api-key, X-API-Key, Cache-Control, Accept, Origin, X-Requested-With'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
     try:
         current_user = getattr(request, 'current_user', None)
         
         if not current_user:
+            logger.warning("[get_user_accessible_menus] Current user not found in request")
             return jsonify({
                 'success': False,
                 'error': 'User tidak ditemukan'
             }), 400
         
+        logger.info(f"[get_user_accessible_menus] Request from user_id: {current_user.id}, username: {getattr(current_user, 'username', 'Unknown')}")
+        
         menus = PermissionService.get_user_accessible_menus(current_user.id)
+        
+        logger.info(f"[get_user_accessible_menus] Returning {len(menus)} menus for user {current_user.id}")
         
         return jsonify({
             'success': True,
@@ -353,10 +365,10 @@ def get_user_accessible_menus():
         }), 200
         
     except Exception as e:
-        logger.error(f"Error getting user accessible menus: {str(e)}")
+        logger.error(f"[get_user_accessible_menus] Error getting user accessible menus: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
-            'error': 'Gagal mengambil menu user'
+            'error': f'Gagal mengambil menu user: {str(e)}'
         }), 500
 
 

@@ -715,17 +715,22 @@ class PermissionService:
             from domains.role.models.role_models import UserRole
             from models import User
             
+            logger.info(f"[get_user_accessible_menus] Starting for user_id: {user_id}")
+            
             # Check if show_in_sidebar column exists
             from sqlalchemy import inspect
             inspector = inspect(db.engine)
             columns = [col['name'] for col in inspector.get_columns('menu_permissions')]
             has_show_in_sidebar = 'show_in_sidebar' in columns
+            logger.info(f"[get_user_accessible_menus] show_in_sidebar column exists: {has_show_in_sidebar}")
             
             # Get user roles (termasuk admin role jika ada)
             user_roles = UserRole.query.filter_by(user_id=user_id, is_active=True).all()
             role_ids = [ur.role_id for ur in user_roles]
+            logger.info(f"[get_user_accessible_menus] User {user_id} has {len(user_roles)} active roles: {role_ids}")
             
             if not role_ids:
+                logger.warning(f"[get_user_accessible_menus] User {user_id} has no active roles, returning empty menu list")
                 return []
             
             # Semua user (termasuk admin) harus melihat menu berdasarkan role mereka sendiri
@@ -740,10 +745,38 @@ class PermissionService:
             # Filter by show_in_sidebar if column exists (berlaku untuk semua user termasuk admin)
             if has_show_in_sidebar:
                 query = query.filter(MenuPermission.show_in_sidebar == True)
+                logger.info(f"[get_user_accessible_menus] Applied show_in_sidebar=True filter")
             
             accessible_menus = query.order_by(Menu.order_index).all()
             
-            logger.info(f"User {user_id} with roles {role_ids} has access to {len(accessible_menus)} menus (filtered by show_in_sidebar={has_show_in_sidebar})")
+            logger.info(f"[get_user_accessible_menus] User {user_id} with roles {role_ids} has access to {len(accessible_menus)} menus (filtered by show_in_sidebar={has_show_in_sidebar})")
+            
+            if len(accessible_menus) == 0:
+                logger.warning(f"[get_user_accessible_menus] No menus found for user {user_id}. Checking possible causes...")
+                # Debug: Check total menus in database
+                total_menus = Menu.query.filter_by(is_active=True).count()
+                logger.info(f"[get_user_accessible_menus] Total active menus in database: {total_menus}")
+                # Debug: Check permissions for this user's roles
+                total_permissions = MenuPermission.query.filter(
+                    MenuPermission.role_id.in_(role_ids),
+                    MenuPermission.is_active == True
+                ).count()
+                logger.info(f"[get_user_accessible_menus] Total permissions for roles {role_ids}: {total_permissions}")
+                # Debug: Check permissions with can_read=True
+                read_permissions = MenuPermission.query.filter(
+                    MenuPermission.role_id.in_(role_ids),
+                    MenuPermission.can_read == True,
+                    MenuPermission.is_active == True
+                ).count()
+                logger.info(f"[get_user_accessible_menus] Permissions with can_read=True: {read_permissions}")
+                if has_show_in_sidebar:
+                    sidebar_permissions = MenuPermission.query.filter(
+                        MenuPermission.role_id.in_(role_ids),
+                        MenuPermission.can_read == True,
+                        MenuPermission.is_active == True,
+                        MenuPermission.show_in_sidebar == True
+                    ).count()
+                    logger.info(f"[get_user_accessible_menus] Permissions with show_in_sidebar=True: {sidebar_permissions}")
             
             # Build hierarchical structure
             menu_dict = {}
@@ -759,11 +792,14 @@ class PermissionService:
                 else:
                     root_menus.append(menu_dict[menu.id])
             
-            logger.info(f"User {user_id} has access to {len(root_menus)} root menus")
+            logger.info(f"[get_user_accessible_menus] User {user_id} has access to {len(root_menus)} root menus")
+            if root_menus:
+                logger.info(f"[get_user_accessible_menus] Root menu names: {[m.get('name') for m in root_menus]}")
+            
             return root_menus
             
         except Exception as e:
-            logger.error(f"Error getting user accessible menus: {str(e)}")
+            logger.error(f"[get_user_accessible_menus] Error getting user accessible menus for user {user_id}: {str(e)}", exc_info=True)
             return []
     
     @staticmethod

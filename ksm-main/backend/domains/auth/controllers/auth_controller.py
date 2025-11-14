@@ -18,8 +18,15 @@ def get_users():
     """
     GET /api/users - Ambil semua users
     """
+    # Handle OPTIONS request dengan CORS headers yang benar
     if request.method == 'OPTIONS':
-        return '', 200
+        from flask import make_response
+        response = make_response('', 200)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, x-api-key, X-API-Key, Cache-Control, Accept, Origin, X-Requested-With'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
     
     try:
         users = User.query.filter_by(is_active=True).all()

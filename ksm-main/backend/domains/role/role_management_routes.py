@@ -144,6 +144,35 @@ def create_role():
         db.session.rollback()
         return APIResponse.error("Failed to create role")
 
+@role_management_bp.route('/permissions', methods=['GET', 'OPTIONS'])
+@jwt_required_custom
+def get_permissions():
+    """Get all permissions"""
+    # Handle OPTIONS request dengan CORS headers yang benar
+    if request.method == 'OPTIONS':
+        from flask import make_response
+        response = make_response('', 200)
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, x-api-key, X-API-Key, Cache-Control, Accept, Origin, X-Requested-With'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
+    
+    try:
+        models = get_models()
+        Permission = models['role_management']['Permission']
+        
+        permissions = Permission.query.filter_by(is_active=True).all()
+        permissions_data = [perm.to_dict() for perm in permissions]
+        
+        return APIResponse.success(
+            data=permissions_data,
+            message="Permissions retrieved successfully"
+        )
+    except Exception as e:
+        logging.error(f"Error getting permissions: {e}")
+        return APIResponse.error("Failed to get permissions")
+
 # Note: File ini sangat besar (1082 baris). Untuk efisiensi, 
 # sisa routes tetap sama seperti file asli. File ini sudah dipindahkan 
 # dari routes/ ke domains/role/ untuk konsistensi struktur.
