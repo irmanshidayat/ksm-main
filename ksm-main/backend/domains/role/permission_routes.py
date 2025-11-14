@@ -357,12 +357,22 @@ def get_user_accessible_menus():
         menus = PermissionService.get_user_accessible_menus(current_user.id)
         
         logger.info(f"[get_user_accessible_menus] Returning {len(menus)} menus for user {current_user.id}")
+        if menus:
+            logger.info(f"[get_user_accessible_menus] Menu names: {[m.get('name') for m in menus[:5]]}")
+        else:
+            logger.warning(f"[get_user_accessible_menus] No menus returned for user {current_user.id}")
         
-        return jsonify({
+        # Add CORS headers to response
+        response = jsonify({
             'success': True,
             'data': menus,
             'message': 'Menu user berhasil diambil'
-        }), 200
+        })
+        origin = request.headers.get('Origin')
+        if origin:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response, 200
         
     except Exception as e:
         logger.error(f"[get_user_accessible_menus] Error getting user accessible menus: {str(e)}", exc_info=True)
