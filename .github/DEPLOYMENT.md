@@ -33,7 +33,7 @@ Tambahkan secrets berikut di GitHub Repository Settings → Secrets and variable
 - `SSH_USER_PROD`: Username SSH untuk production (contoh: `root`)
 - `SSH_KEY_PROD`: Private SSH key untuk production (full key dengan header/footer)
 - `DEPLOY_PATH_PROD`: Path deployment di server (default: `/opt/ksm-main-prod`)
-.
+
 **Catatan Penting**: 
 - VPS menggunakan port SSH **22** (port default)
 - Semua workflow GitHub Actions sudah dikonfigurasi untuk menggunakan port 22
@@ -68,10 +68,112 @@ cat ~/.ssh/github_actions_deploy
 
 ### Manual Deployment
 
+Ada 2 cara untuk manual deployment:
+
+#### Cara 1: Menggunakan GitHub Actions (Recommended)
+
 1. Buka GitHub Actions tab
 2. Pilih workflow yang sesuai (`Deploy Development` atau `Deploy Production`)
 3. Klik "Run workflow"
 4. Pilih branch dan klik "Run workflow"
+
+#### Cara 2: Manual Deployment via Script (Windows)
+
+Gunakan script PowerShell untuk copy files ke server:
+
+```powershell
+# Dari root project directory
+cd "C:\Irman\Coding KSM Main\KSM Grup - dev"
+
+# Jalankan script manual deployment
+.\scripts\manual-deploy.ps1
+
+# Atau dengan environment spesifik
+.\scripts\manual-deploy.ps1 -Environment dev
+.\scripts\manual-deploy.ps1 -Environment prod
+```
+
+Script akan otomatis:
+- Copy docker-compose file
+- Copy infrastructure files
+- Copy backend files
+- Copy frontend files
+- Copy Agent AI files
+
+**Setelah script selesai**, SSH ke server dan jalankan:
+
+```bash
+# SSH ke server
+ssh root@72.61.142.109
+
+# Masuk ke directory deployment
+cd /opt/ksm-main-dev  # atau /opt/ksm-main-prod untuk production
+
+# Stop container yang ada (jika ada)
+docker-compose -f docker-compose.yml down || true
+
+# Build Docker images
+docker-compose -f docker-compose.yml build --no-cache
+
+# Start services
+docker-compose -f docker-compose.yml up -d
+
+# Tunggu beberapa detik untuk services start
+sleep 30
+
+# Cek status
+docker-compose -f docker-compose.yml ps
+
+# Test health endpoints
+curl http://localhost:8002/api/health  # dev: 8002, prod: 8001
+curl http://localhost:5002/health    # dev: 5002, prod: 5001
+curl http://localhost:3006           # dev: 3006, prod: 3005
+```
+
+#### Cara 3: Manual Copy Files (Tanpa Script)
+
+Jika script tidak bisa digunakan, copy files secara manual:
+
+**Dari PowerShell Windows (root project):**
+
+```powershell
+# 1. Copy docker-compose file
+scp -P 22 ksm-main/docker-compose.dev.yml root@72.61.142.109:/opt/ksm-main-dev/docker-compose.yml
+
+# 2. Buat directory infrastructure
+ssh root@72.61.142.109 "mkdir -p /opt/ksm-main-dev/infrastructure"
+
+# 3. Copy infrastructure files
+scp -P 22 -r ksm-main/infrastructure/* root@72.61.142.109:/opt/ksm-main-dev/infrastructure/
+
+# 4. Copy backend files
+scp -P 22 -r ksm-main/backend root@72.61.142.109:/opt/ksm-main-dev/
+
+# 5. Copy frontend files
+scp -P 22 -r ksm-main/frontend-vite root@72.61.142.109:/opt/ksm-main-dev/
+
+# 6. Copy Agent AI files
+scp -P 22 -r "Agent AI" root@72.61.142.109:/opt/
+```
+
+**Catatan Penting:**
+- `scp` akan copy semua file termasuk cache (__pycache__, node_modules, dll)
+- Setelah copy, cleanup cache files di server jika diperlukan
+- Untuk production, ganti `docker-compose.dev.yml` dengan `docker-compose.yml` dan path `/opt/ksm-main-dev` dengan `/opt/ksm-main-prod`
+
+**Cleanup cache files di server (opsional):**
+
+```bash
+# Di server, setelah copy files
+cd /opt/ksm-main-dev
+
+# Hapus Python cache
+find backend -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true
+find backend -name "*.pyc" -delete
+
+# Hapus node_modules (akan diinstall ulang saat build)
+rm -rf frontend-vite/node_modules
+```
 
 ## Server Setup
 
@@ -171,6 +273,11 @@ Gunakan helper scripts untuk maintenance:
 # Test SSH connection (dengan port 22)
 .\scripts\ssh-test.ps1
 .\scripts\ssh-test.ps1 72.61.142.109 root
+
+# Manual deployment
+.\scripts\manual-deploy.ps1
+.\scripts\manual-deploy.ps1 -Environment dev
+.\scripts\manual-deploy.ps1 -Environment prod
 ```
 
 ## Troubleshooting
