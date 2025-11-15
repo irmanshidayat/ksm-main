@@ -299,6 +299,30 @@ jobs:
             cleanup_docker() {
               echo "🧹 Cleaning up Docker resources..."
               
+              # First, explicitly remove containers by name that might conflict
+              echo "🗑️  Removing containers by name (preventing name conflicts)..."
+              CONFLICT_CONTAINERS=(
+                "KSM-mysql-dev"
+                "KSM-redis-dev"
+                "KSM-qdrant-dev"
+                "KSM-backend-dev"
+                "KSM-frontend-vite-dev"
+                "KSM-nginx-dev"
+                "KSM-agent-ai-dev"
+                "KSM-prometheus-dev"
+                "KSM-grafana-dev"
+                "KSM-adminer-dev"
+              )
+              
+              for CONTAINER_NAME in "\${CONFLICT_CONTAINERS[@]}"; do
+                if docker ps -a --format "{{.Names}}" | grep -q "^\$CONTAINER_NAME\$"; then
+                  echo "⚠️  Found existing container: \$CONTAINER_NAME, removing..."
+                  docker stop "\$CONTAINER_NAME" 2>/dev/null || true
+                  docker rm -f "\$CONTAINER_NAME" 2>/dev/null || true
+                  sleep 1
+                fi
+              done
+              
               # Stop and remove all containers
               echo "🛑 Stopping existing containers..."
               docker-compose -f docker-compose.yml down --remove-orphans || true
@@ -309,6 +333,14 @@ jobs:
               # Remove any dangling containers with KSM prefix
               echo "🗑️  Removing dangling containers..."
               docker ps -a --filter "name=KSM-" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
+              
+              # Double check: Remove containers by name again (in case they were recreated)
+              for CONTAINER_NAME in "\${CONFLICT_CONTAINERS[@]}"; do
+                if docker ps -a --format "{{.Names}}" | grep -q "^\$CONTAINER_NAME\$"; then
+                  echo "⚠️  Still found container: \$CONTAINER_NAME, force removing..."
+                  docker rm -f "\$CONTAINER_NAME" 2>/dev/null || true
+                fi
+              done
               
               # Force remove any containers using required ports
               for PORT in 8002 3310 6381 6333 6334 5002 3006 8084 8444 9092 3007 8085; do
@@ -461,6 +493,30 @@ jobs:
             # Start services with retry logic
             echo "🚀 Starting services..."
             
+            # Final check before starting - remove containers by name to prevent conflicts
+            echo "🔍 Final pre-start container name check..."
+            CONFLICT_CONTAINERS=(
+              "KSM-mysql-dev"
+              "KSM-redis-dev"
+              "KSM-qdrant-dev"
+              "KSM-backend-dev"
+              "KSM-frontend-vite-dev"
+              "KSM-nginx-dev"
+              "KSM-agent-ai-dev"
+              "KSM-prometheus-dev"
+              "KSM-grafana-dev"
+              "KSM-adminer-dev"
+            )
+            
+            for CONTAINER_NAME in "\${CONFLICT_CONTAINERS[@]}"; do
+              if docker ps -a --format "{{.Names}}" | grep -q "^\$CONTAINER_NAME\$"; then
+                echo "⚠️  Found conflicting container: \$CONTAINER_NAME, force removing..."
+                docker stop "\$CONTAINER_NAME" 2>/dev/null || true
+                docker rm -f "\$CONTAINER_NAME" 2>/dev/null || true
+                sleep 1
+              fi
+            done
+            
             # Final check before starting - ensure no containers are using our ports
             echo "🔍 Final pre-start port check..."
             for PORT in 8002 3310 6381 6333 6334 5002 3006 8084 8444 9092 3007 8085; do
@@ -485,8 +541,54 @@ jobs:
               echo "🔄 Start attempt \$START_RETRY/\$MAX_START_RETRIES..."
               
               if docker-compose -f docker-compose.yml up -d 2>&1 | tee /tmp/start.log; then
+                # Check if there are any container name conflicts
+                if grep -q "container name.*is already in use" /tmp/start.log || grep -q "Conflict.*container name" /tmp/start.log; then
+                  echo "⚠️  Container name conflict detected. Cleaning up and retrying..."
+                  
+                  # Extract container name from error message
+                  CONFLICT_CONTAINER=\$(grep -oE "container name.*\"([^\"]+)\"" /tmp/start.log | grep -oE "\"([^\"]+)\"" | tr -d '"' | head -1 || echo "")
+                  if [ -z "\$CONFLICT_CONTAINER" ]; then
+                    # Try alternative format: "Conflict. The container name \"/KSM-mysql-dev\" is already in use"
+                    CONFLICT_CONTAINER=\$(grep -oE "container name.*\"([^\"]+)\"" /tmp/start.log | grep -oE "/[^\"]+" | tr -d '/' | head -1 || echo "")
+                  fi
+                  
+                  if [ -n "\$CONFLICT_CONTAINER" ]; then
+                    echo "🔍 Removing conflicting container: \$CONFLICT_CONTAINER..."
+                    docker stop "\$CONFLICT_CONTAINER" 2>/dev/null || true
+                    docker rm -f "\$CONFLICT_CONTAINER" 2>/dev/null || true
+                  fi
+                  
+                  # Remove all KSM containers by name
+                  CONFLICT_CONTAINERS=(
+                    "KSM-mysql-dev"
+                    "KSM-redis-dev"
+                    "KSM-qdrant-dev"
+                    "KSM-backend-dev"
+                    "KSM-frontend-vite-dev"
+                    "KSM-nginx-dev"
+                    "KSM-agent-ai-dev"
+                    "KSM-prometheus-dev"
+                    "KSM-grafana-dev"
+                    "KSM-adminer-dev"
+                  )
+                  
+                  for CONTAINER_NAME in "\${CONFLICT_CONTAINERS[@]}"; do
+                    if docker ps -a --format "{{.Names}}" | grep -q "^\$CONTAINER_NAME\$"; then
+                      echo "🔍 Removing container: \$CONTAINER_NAME..."
+                      docker stop "\$CONTAINER_NAME" 2>/dev/null || true
+                      docker rm -f "\$CONTAINER_NAME" 2>/dev/null || true
+                    fi
+                  done
+                  
+                  # Cleanup and retry
+                  cleanup_docker
+                  sleep 10
+                  
+                  if [ \$START_RETRY -lt \$MAX_START_RETRIES ]; then
+                    continue
+                  fi
                 # Check if there are any port binding errors
-                if grep -q "port is already allocated" /tmp/start.log; then
+                elif grep -q "port is already allocated" /tmp/start.log; then
                   echo "⚠️  Port conflict detected. Cleaning up and retrying..."
                   
                   # Extract port from error message (format: "Bind for 0.0.0.0:8002 failed: port is already allocated")
@@ -521,8 +623,59 @@ jobs:
                 START_EXIT_CODE=\${PIPESTATUS[0]}
                 echo "❌ Start failed with exit code \$START_EXIT_CODE"
                 
+                # Check for container name conflicts
+                if grep -q "container name.*is already in use" /tmp/start.log || grep -q "Conflict.*container name" /tmp/start.log; then
+                  echo "⚠️  Container name conflict detected. Attempting to resolve..."
+                  
+                  # Extract all conflicting container names
+                  CONFLICT_CONTAINERS_LIST=\$(grep -oE "container name.*\"([^\"]+)\"" /tmp/start.log | grep -oE "\"([^\"]+)\"" | tr -d '"' | sort -u || echo "")
+                  if [ -z "\$CONFLICT_CONTAINERS_LIST" ]; then
+                    # Try alternative format
+                    CONFLICT_CONTAINERS_LIST=\$(grep -oE "container name.*\"([^\"]+)\"" /tmp/start.log | grep -oE "/[^\"]+" | tr -d '/' | sort -u || echo "")
+                  fi
+                  
+                  if [ -n "\$CONFLICT_CONTAINERS_LIST" ]; then
+                    echo "🔍 Removing conflicting containers..."
+                    echo "\$CONFLICT_CONTAINERS_LIST" | while read CONTAINER_NAME; do
+                      if [ -n "\$CONTAINER_NAME" ]; then
+                        echo "  🔍 Removing container: \$CONTAINER_NAME..."
+                        docker stop "\$CONTAINER_NAME" 2>/dev/null || true
+                        docker rm -f "\$CONTAINER_NAME" 2>/dev/null || true
+                      fi
+                    done
+                  fi
+                  
+                  # Remove all KSM containers by name
+                  CONFLICT_CONTAINERS=(
+                    "KSM-mysql-dev"
+                    "KSM-redis-dev"
+                    "KSM-qdrant-dev"
+                    "KSM-backend-dev"
+                    "KSM-frontend-vite-dev"
+                    "KSM-nginx-dev"
+                    "KSM-agent-ai-dev"
+                    "KSM-prometheus-dev"
+                    "KSM-grafana-dev"
+                    "KSM-adminer-dev"
+                  )
+                  
+                  for CONTAINER_NAME in "\${CONFLICT_CONTAINERS[@]}"; do
+                    if docker ps -a --format "{{.Names}}" | grep -q "^\$CONTAINER_NAME\$"; then
+                      echo "🔍 Removing container: \$CONTAINER_NAME..."
+                      docker stop "\$CONTAINER_NAME" 2>/dev/null || true
+                      docker rm -f "\$CONTAINER_NAME" 2>/dev/null || true
+                    fi
+                  done
+                  
+                  # Cleanup and retry
+                  cleanup_docker
+                  sleep 10
+                  
+                  if [ \$START_RETRY -lt \$MAX_START_RETRIES ]; then
+                    continue
+                  fi
                 # Check for port conflicts
-                if grep -q "port is already allocated" /tmp/start.log; then
+                elif grep -q "port is already allocated" /tmp/start.log; then
                   echo "⚠️  Port conflict detected. Attempting to resolve..."
                   
                   # Extract all conflicting ports (format: "Bind for 0.0.0.0:8002 failed: port is already allocated")
