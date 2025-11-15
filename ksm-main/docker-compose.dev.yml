@@ -22,8 +22,8 @@
 
 services:
   # MySQL Database untuk Development
-  # Port mapping: 3309 (host) -> 3306 (container)
-  # - Host port 3309: untuk akses dari luar container (jika diperlukan)
+  # Port mapping: 3310 (host) -> 3306 (container)
+  # - Host port 3310: untuk akses dari luar container (jika diperlukan)
   # - Container port 3306: port internal MySQL di dalam container
   # - Aplikasi di dalam Docker network menggunakan mysql-dev:3306
   mysql-dev:
@@ -39,7 +39,7 @@ services:
       - ./infrastructure/mysql-init:/docker-entrypoint-initdb.d
       - ./logs/mysql-dev:/var/log/mysql
     ports:
-      - "3309:3306"  # External port 3309, internal port 3306
+      - "3310:3306"  # External port 3310, internal port 3306
     networks:
       - KSM-dev-network
     command: --default-authentication-plugin=mysql_native_password --general-log=1 --general-log-file=/var/log/mysql/mysql.log
@@ -61,7 +61,7 @@ services:
       - ./logs/redis-dev:/var/log/redis
     networks:
       - KSM-dev-network
-    command: redis-server /usr/local/etc/redis/redis.conf --appendonly yes --logfile /var/log/redis/redis.log
+    command: redis-server /usr/local/etc/redis/redis.conf --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       timeout: 10s
