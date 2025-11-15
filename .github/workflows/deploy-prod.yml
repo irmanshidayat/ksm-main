@@ -214,64 +214,35 @@ jobs:
           ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} \
             "mkdir -p $DEPLOY_PATH/logs/{mysql,nginx,redis}"
 
+      - name: Copy scripts directory
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_PROD || '/opt/ksm-main-prod' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} \
+            "mkdir -p $DEPLOY_PATH/scripts"
+          
+          scp -P 22 -r scripts/* \
+            ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }}:$DEPLOY_PATH/scripts/
+          
+          # Make scripts executable
+          ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} \
+            "chmod +x $DEPLOY_PATH/scripts/*.sh"
+
+      - name: Copy deployment script
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_PROD || '/opt/ksm-main-prod' }}
+        run: |
+          scp -P 22 .github/scripts/deploy-prod.sh \
+            ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }}:/tmp/deploy-prod.sh
+
       - name: Deploy with Docker Compose
         env:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_PROD || '/opt/ksm-main-prod' }}
         run: |
           ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} << EOF
             set -e
-            cd $DEPLOY_PATH
-            
-            # Stop existing containers
-            echo "🛑 Stopping existing containers..."
-            if [ -f docker-compose.yml ]; then
-              docker-compose -f docker-compose.yml down || true
-            fi
-            
-            # Check if .env file exists
-            if [ ! -f .env ]; then
-              echo "⚠️  Warning: .env file not found. Creating from example..."
-              if [ -f env.example ]; then
-                cp env.example .env
-                echo "✅ Created .env from env.example"
-              else
-                echo "⚠️  env.example not found. Services may fail without proper configuration."
-              fi
-            fi
-            
-            # Build and start services
-            echo "🔨 Building Docker images..."
-            docker-compose -f docker-compose.yml build --no-cache || {
-              echo "❌ Build failed! Showing logs..."
-              docker-compose -f docker-compose.yml logs --tail=50
-              exit 1
-            }
-            
-            # Start services
-            echo "🚀 Starting services..."
-            docker-compose -f docker-compose.yml up -d || {
-              echo "❌ Failed to start services! Showing logs..."
-              docker-compose -f docker-compose.yml logs --tail=50
-              exit 1
-            }
-            
-            # Wait for services to be healthy
-            echo "⏳ Waiting for services to start (60 seconds)..."
-            sleep 60
-            
-            # Check service status
-            echo "📊 Service status:"
-            docker-compose -f docker-compose.yml ps
-            
-            # Show any failed containers
-            FAILED_CONTAINERS=\$(docker-compose -f docker-compose.yml ps | grep -E "(Exit|Restarting|unhealthy)" || true)
-            if [ -n "\$FAILED_CONTAINERS" ]; then
-              echo "⚠️  Some containers have issues:"
-              echo "\$FAILED_CONTAINERS"
-              echo ""
-              echo "📋 Showing logs for failed containers:"
-              docker-compose -f docker-compose.yml logs --tail=100
-            fi
+            chmod +x /tmp/deploy-prod.sh
+            /tmp/deploy-prod.sh $DEPLOY_PATH
           EOF
 
       - name: Verify deployment
