@@ -98,6 +98,35 @@ if command -v openssl >/dev/null 2>&1; then
             echo "   Expected: $DOMAIN"
             echo "   Found: $CERT_SUBJECT"
         fi
+        
+        # Check certificate chain completeness
+        CERT_CHAIN_COUNT=$(grep -c "BEGIN CERTIFICATE" "$CERT_FILE" 2>/dev/null || echo "0")
+        if [ "$CERT_CHAIN_COUNT" -lt 2 ]; then
+            echo -e "${YELLOW}⚠️  Certificate chain tidak lengkap!${NC}"
+            echo "   Found: $CERT_CHAIN_COUNT certificate(s)"
+            echo "   Expected: 2+ certificates (certificate + intermediate chain)"
+            echo ""
+            echo "   Masalah: Certificate chain tidak lengkap dapat menyebabkan"
+            echo "   NET::ERR_CERT_COMMON_NAME_INVALID di browser"
+            echo ""
+            echo "   Solusi: Pastikan cert.pem adalah fullchain.pem dari Let's Encrypt"
+            echo "   Check Let's Encrypt certificate:"
+            LETSENCRYPT_FULLCHAIN="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+            if [ -f "$LETSENCRYPT_FULLCHAIN" ]; then
+                echo -e "   ${GREEN}✅ Let's Encrypt fullchain ditemukan: $LETSENCRYPT_FULLCHAIN${NC}"
+                FULLCHAIN_COUNT=$(grep -c "BEGIN CERTIFICATE" "$LETSENCRYPT_FULLCHAIN" 2>/dev/null || echo "0")
+                echo "   Fullchain contains: $FULLCHAIN_COUNT certificate(s)"
+                echo ""
+                echo "   Untuk memperbaiki, jalankan:"
+                echo "   cp $LETSENCRYPT_FULLCHAIN $CERT_FILE"
+                echo "   docker-compose restart $NGINX_CONTAINER"
+            else
+                echo -e "   ${YELLOW}⚠️  Let's Encrypt fullchain tidak ditemukan${NC}"
+                echo "   Run: ./scripts/setup-ssl.sh $ENVIRONMENT your-email@example.com"
+            fi
+        else
+            echo -e "${GREEN}✅ Certificate chain lengkap ($CERT_CHAIN_COUNT certificates)${NC}"
+        fi
     else
         echo -e "${YELLOW}⚠️  Could not read certificate details${NC}"
     fi
@@ -182,11 +211,26 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo -e "${BLUE}📊 Summary${NC}"
 echo ""
 
-# Check if Let's Encrypt certificate exists
+# Check if Let's Encrypt certificate exists and suggest fix
 LETSENCRYPT_CERT="/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
 if [ -f "$LETSENCRYPT_CERT" ]; then
     echo -e "${GREEN}✅ Let's Encrypt certificate found${NC}"
     echo "   Location: $LETSENCRYPT_CERT"
+    
+    # Check if current cert.pem is different from Let's Encrypt fullchain
+    if [ -f "$CERT_FILE" ] && [ -f "$LETSENCRYPT_CERT" ]; then
+        if ! cmp -s "$CERT_FILE" "$LETSENCRYPT_CERT" 2>/dev/null; then
+            echo ""
+            echo -e "${YELLOW}⚠️  Certificate di deployment berbeda dengan Let's Encrypt fullchain${NC}"
+            echo "   Ini dapat menyebabkan NET::ERR_CERT_COMMON_NAME_INVALID"
+            echo ""
+            echo "💡 Untuk memperbaiki, jalankan:"
+            echo "   cp $LETSENCRYPT_CERT $CERT_FILE"
+            echo "   cp /etc/letsencrypt/live/$DOMAIN/privkey.pem $KEY_FILE"
+            echo "   docker-compose restart $NGINX_CONTAINER"
+        fi
+    fi
+    
     echo ""
     echo "💡 Recommendation:"
     echo "   If certificate is invalid or expired, run:"

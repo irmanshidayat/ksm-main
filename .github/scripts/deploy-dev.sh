@@ -556,10 +556,60 @@ if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
         # Check if certificate matches domain
         if echo "$CERT_SUBJECT" | grep -q "devreport.ptkiansantang.com"; then
           echo "✅ Certificate matches domain"
+          
+          # Check if certificate chain is complete (fullchain)
+          CERT_CHAIN_COUNT=$(grep -c "BEGIN CERTIFICATE" "$CERT_FILE" 2>/dev/null || echo "0")
+          if [ "$CERT_CHAIN_COUNT" -lt 2 ]; then
+            echo "⚠️  Warning: Certificate chain mungkin tidak lengkap (hanya 1 certificate ditemukan)"
+            echo "   Let's Encrypt memerlukan fullchain (certificate + intermediate)"
+            echo "   Pastikan cert.pem adalah fullchain.pem dari Let's Encrypt"
+          else
+            echo "✅ Certificate chain lengkap ($CERT_CHAIN_COUNT certificates)"
+          fi
+          
+          # Restart nginx container untuk memastikan SSL certificate di-load
+          echo ""
+          echo "🔄 Restarting nginx container untuk memuat SSL certificate..."
+          if docker ps --format "{{.Names}}" | grep -q "^KSM-nginx-dev$"; then
+            # Try reload first (graceful)
+            if docker exec KSM-nginx-dev nginx -t >/dev/null 2>&1; then
+              echo "   Reloading nginx config..."
+              docker exec KSM-nginx-dev nginx -s reload 2>/dev/null && echo "✅ Nginx config reloaded" || {
+                echo "⚠️  Reload failed, restarting container..."
+                docker-compose -f docker-compose.yml restart nginx-dev 2>/dev/null || true
+                sleep 5
+                echo "✅ Nginx container restarted"
+              }
+            else
+              echo "⚠️  Nginx config test failed, restarting container..."
+              docker-compose -f docker-compose.yml restart nginx-dev 2>/dev/null || true
+              sleep 5
+              echo "✅ Nginx container restarted"
+            fi
+          else
+            echo "⚠️  Nginx container tidak berjalan, akan di-start oleh docker-compose..."
+          fi
         else
           echo "⚠️  Certificate does NOT match domain devreport.ptkiansantang.com"
           echo "   Run: ./scripts/setup-ssl.sh dev your-email@example.com"
         fi
+      fi
+    fi
+  else
+    # Even without openssl, restart nginx if certificate files exist
+    echo ""
+    echo "🔄 Restarting nginx container untuk memuat SSL certificate..."
+    if docker ps --format "{{.Names}}" | grep -q "^KSM-nginx-dev$"; then
+      if docker exec KSM-nginx-dev nginx -t >/dev/null 2>&1; then
+        docker exec KSM-nginx-dev nginx -s reload 2>/dev/null && echo "✅ Nginx config reloaded" || {
+          docker-compose -f docker-compose.yml restart nginx-dev 2>/dev/null || true
+          sleep 5
+          echo "✅ Nginx container restarted"
+        }
+      else
+        docker-compose -f docker-compose.yml restart nginx-dev 2>/dev/null || true
+        sleep 5
+        echo "✅ Nginx container restarted"
       fi
     fi
   fi

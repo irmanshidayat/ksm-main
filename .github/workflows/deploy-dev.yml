@@ -213,6 +213,20 @@ jobs:
           ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} \
             "mkdir -p $DEPLOY_PATH/logs/{mysql-dev,nginx-dev,redis-dev}"
 
+      - name: Copy scripts directory
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} \
+            "mkdir -p $DEPLOY_PATH/scripts"
+          
+          scp -P 22 -r scripts/* \
+            ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }}:$DEPLOY_PATH/scripts/
+          
+          # Make scripts executable
+          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} \
+            "chmod +x $DEPLOY_PATH/scripts/*.sh"
+
       - name: Copy deployment script
         env:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}

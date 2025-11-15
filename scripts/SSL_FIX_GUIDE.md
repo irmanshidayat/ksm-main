@@ -30,11 +30,56 @@ Jika certificate tidak ada atau tidak valid:
 
 **Catatan:** Ganti `your-email@example.com` dengan email Anda yang valid.
 
-### 3. Restart Nginx Container
+### 3. Setup Nginx Host Reverse Proxy (jika port 443 digunakan oleh nginx host lain)
+
+Jika port 443 di host sudah digunakan oleh nginx host untuk domain lain (misalnya `jargas.ptkiansantang.com`), setup reverse proxy:
+
+```bash
+# SSH ke server
+ssh user@vps-ip
+
+# Masuk ke directory deployment
+cd /opt/ksm-main-dev
+
+# Setup reverse proxy di nginx host
+sudo ./scripts/setup-nginx-host-proxy.sh dev
+```
+
+Script ini akan:
+- Membuat konfigurasi nginx host untuk `devreport.ptkiansantang.com`
+- Setup reverse proxy dari port 443 ke container di port 8445
+- Menggunakan SSL certificate yang sudah ada di deployment directory
+
+**Catatan:**
+- Container nginx menggunakan port `8445:443` (bukan 443 langsung)
+- Nginx host akan reverse proxy ke container di port 8445
+- Domain `jargas.ptkiansantang.com` tetap menggunakan port 443 langsung
+
+### 4. Fix Certificate Chain (jika masih error)
+
+Jika certificate sudah ditemukan tapi masih error `NET::ERR_CERT_COMMON_NAME_INVALID`:
+
+```bash
+# Copy fullchain dari Let's Encrypt
+cp /etc/letsencrypt/live/devreport.ptkiansantang.com/fullchain.pem /opt/ksm-main-dev/infrastructure/nginx/ssl/cert.pem
+cp /etc/letsencrypt/live/devreport.ptkiansantang.com/privkey.pem /opt/ksm-main-dev/infrastructure/nginx/ssl/key.pem
+
+# Restart nginx
+cd /opt/ksm-main-dev
+docker-compose restart nginx-dev
+
+# Reload nginx host (jika menggunakan reverse proxy)
+sudo systemctl reload nginx
+```
+
+### 5. Restart Nginx Container
 
 ```bash
 cd /opt/ksm-main-dev
 docker-compose restart nginx-dev
+
+# Jika menggunakan reverse proxy di nginx host, reload juga:
+sudo systemctl reload nginx
 ```
 
 ## Troubleshooting
@@ -79,6 +124,58 @@ cp /etc/letsencrypt/live/devreport.ptkiansantang.com/privkey.pem /opt/ksm-main-d
 cd /opt/ksm-main-dev
 docker-compose restart nginx-dev
 ```
+
+### Certificate chain tidak lengkap (NET::ERR_CERT_COMMON_NAME_INVALID)
+
+**Gejala:** 
+- Browser menampilkan error `NET::ERR_CERT_COMMON_NAME_INVALID`
+- SSL certificate sudah ditemukan dan valid
+- Domain sudah benar
+- Tapi web masih tidak bisa diakses
+
+**Penyebab:**
+Certificate chain tidak lengkap. Let's Encrypt memerlukan **fullchain** (certificate + intermediate chain), bukan hanya certificate saja. Jika `cert.pem` hanya berisi 1 certificate, browser tidak bisa memverifikasi chain of trust.
+
+**Solusi Cepat:**
+```bash
+# SSH ke server
+ssh user@vps-ip
+
+# Masuk ke directory deployment
+cd /opt/ksm-main-dev
+
+# Check certificate chain
+./scripts/check-ssl.sh dev
+
+# Jika certificate chain tidak lengkap, perbaiki:
+# 1. Copy fullchain dari Let's Encrypt
+cp /etc/letsencrypt/live/devreport.ptkiansantang.com/fullchain.pem /opt/ksm-main-dev/infrastructure/nginx/ssl/cert.pem
+cp /etc/letsencrypt/live/devreport.ptkiansantang.com/privkey.pem /opt/ksm-main-dev/infrastructure/nginx/ssl/key.pem
+
+# 2. Set permissions
+chmod 644 /opt/ksm-main-dev/infrastructure/nginx/ssl/cert.pem
+chmod 600 /opt/ksm-main-dev/infrastructure/nginx/ssl/key.pem
+
+# 3. Restart nginx container
+docker-compose restart nginx-dev
+
+# 4. Verify
+./scripts/check-ssl.sh dev
+```
+
+**Verifikasi Certificate Chain:**
+```bash
+# Check berapa banyak certificate di file
+grep -c "BEGIN CERTIFICATE" /opt/ksm-main-dev/infrastructure/nginx/ssl/cert.pem
+
+# Harusnya minimal 2 (certificate + intermediate)
+# Jika hanya 1, berarti chain tidak lengkap
+```
+
+**Catatan Penting:**
+- Pastikan menggunakan `fullchain.pem` bukan `cert.pem` dari Let's Encrypt
+- Fullchain berisi: domain certificate + intermediate certificate(s)
+- Browser memerlukan fullchain untuk memverifikasi chain of trust
 
 ### Domain belum pointing ke server
 

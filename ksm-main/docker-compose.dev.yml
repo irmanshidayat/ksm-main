@@ -253,13 +253,16 @@ services:
       interval: 30s
 
   # Nginx Reverse Proxy untuk Development
+  # Port mapping: 8084:80 (HTTP), 8445:443 (HTTPS)
+  # Note: Port 443 di host digunakan oleh nginx host untuk jargas.ptkiansantang.com
+  # Nginx host akan reverse proxy ke container ini di port 8445
   nginx-dev:
     image: nginx:alpine
     container_name: KSM-nginx-dev
     restart: always
     ports:
       - "8084:80"
-      - "8444:443"
+      - "8445:443"  # Changed from 8444 to 8445 to avoid conflict
     volumes:
       - ./infrastructure/nginx/nginx.dev.conf:/etc/nginx/nginx.conf
       - ./infrastructure/nginx/ssl:/etc/nginx/ssl
