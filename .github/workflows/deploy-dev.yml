@@ -217,13 +217,52 @@ jobs:
         env:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}
         run: |
-          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} << EOF
+          ssh -p 22 -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
+            ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} << DEPLOY_EOF || {
+            echo "❌ SSH command failed with exit code $?"
+            echo "Checking SSH connection..."
+            ssh -p 22 -o ConnectTimeout=10 -v ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} "echo 'SSH test'" || true
+            exit 1
+          }
             set -e
-            cd $DEPLOY_PATH
+            set -o pipefail
+            
+            # Error handling
+            trap 'EXIT_CODE=\$?; echo "❌ Error at line \$LINENO: Command failed with exit code \$EXIT_CODE"; exit \$EXIT_CODE' ERR
+            
+            # Debug info
+            echo "📁 Current directory: \$(pwd)"
+            echo "📁 Deploy path: $DEPLOY_PATH"
+            echo "🔍 Checking deployment directory..."
+            
+            # Verify deployment directory exists
+            if [ ! -d "$DEPLOY_PATH" ]; then
+              echo "❌ ERROR: Deployment directory does not exist: $DEPLOY_PATH"
+              echo "Creating directory..."
+              mkdir -p "$DEPLOY_PATH" || {
+                echo "❌ Failed to create directory"
+                exit 1
+              }
+            fi
+            
+            cd "$DEPLOY_PATH" || {
+              echo "❌ ERROR: Cannot change to directory: $DEPLOY_PATH"
+              echo "Directory contents:"
+              ls -la "$DEPLOY_PATH" || true
+              exit 1
+            }
+            
+            echo "✅ Changed to deployment directory: \$(pwd)"
+            echo "📋 Directory contents:"
+            ls -la | head -20 || true
             
             # Stop existing containers
             echo "🛑 Stopping existing containers..."
-            docker-compose -f docker-compose.yml down || true
+            if [ -f docker-compose.yml ]; then
+              docker-compose -f docker-compose.yml down || true
+            else
+              echo "⚠️  docker-compose.yml not found, skipping stop"
+            fi
             
             # Check if .env file exists
             if [ ! -f .env ]; then
@@ -311,14 +350,36 @@ jobs:
               echo "📋 Showing logs for failed containers:"
               docker-compose -f docker-compose.yml logs --tail=100
             fi
-          EOF
+            
+            echo "✅ Deployment script completed successfully"
+          DEPLOY_EOF
 
       - name: Verify deployment
         env:
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_DEV || '/opt/ksm-main-dev' }}
         run: |
-          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} << EOF
-            cd $DEPLOY_PATH
+          ssh -p 22 -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
+            ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} << VERIFY_EOF || {
+            echo "❌ SSH verification failed with exit code $?"
+            exit 1
+          }
+            set -e
+            set -o pipefail
+            
+            # Error handling
+            trap 'EXIT_CODE=\$?; echo "❌ Verification error at line \$LINENO: Command failed with exit code \$EXIT_CODE"; exit \$EXIT_CODE' ERR
+            
+            echo "📁 Verifying deployment at: $DEPLOY_PATH"
+            
+            if [ ! -d "$DEPLOY_PATH" ]; then
+              echo "❌ ERROR: Deployment directory does not exist: $DEPLOY_PATH"
+              exit 1
+            fi
+            
+            cd "$DEPLOY_PATH" || {
+              echo "❌ ERROR: Cannot change to directory: $DEPLOY_PATH"
+              exit 1
+            }
             
             # Get container status
             CONTAINER_STATUS=\$(docker-compose -f docker-compose.yml ps)
@@ -366,16 +427,28 @@ jobs:
               df -h | head -2
               exit 1
             fi
-          EOF
+            
+            echo "✅ Verification completed successfully"
+          VERIFY_EOF
 
       - name: Cleanup old images
         if: success()
         run: |
-          ssh -p 22 ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} << EOF
+          ssh -p 22 -o ConnectTimeout=30 -o ServerAliveInterval=60 -o ServerAliveCountMax=3 \
+            ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} << CLEANUP_EOF || {
+            echo "⚠️  Cleanup failed, but continuing..."
+            exit 0
+          }
+            set +e  # Don't exit on error for cleanup
+            
+            echo "🧹 Cleaning up old Docker images..."
+            
             # Remove dangling images
-            docker image prune -f
+            docker image prune -f || true
             
             # Remove unused images (older than 7 days)
             docker image prune -a -f --filter "until=168h" || true
-          EOF
+            
+            echo "✅ Cleanup completed"
+          CLEANUP_EOF
 
