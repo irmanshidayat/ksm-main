@@ -18,11 +18,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Install system dependencies untuk production dengan retry mechanism
 # Mengatasi masalah DNS resolution dengan retry mechanism (5 attempts dengan exponential backoff)
+# Menggunakan timeout dan retry yang lebih agresif untuk mengatasi masalah DNS
 RUN set -e; \
     MAX_ATTEMPTS=5; \
+    APT_TIMEOUT=120; \
     for i in $(seq 1 $MAX_ATTEMPTS); do \
-        echo "Attempt $i/$MAX_ATTEMPTS: Updating package lists..."; \
-        if apt-get update; then \
+        echo "Attempt $i/$MAX_ATTEMPTS: Updating package lists (timeout: ${APT_TIMEOUT}s)..."; \
+        if timeout ${APT_TIMEOUT} apt-get update -o Acquire::http::Timeout=${APT_TIMEOUT} -o Acquire::ftp::Timeout=${APT_TIMEOUT}; then \
             echo "✅ Package lists updated successfully"; \
             break; \
         else \
