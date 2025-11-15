@@ -7,7 +7,7 @@ App Factory - Factory untuk membuat Flask application instance
 import pymysql
 pymysql.install_as_MySQLdb()
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Blueprint
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_socketio import SocketIO
@@ -39,9 +39,22 @@ from domains.monitoring.routes import register_monitoring_routes
 from domains.integration.routes import register_integration_routes
 from domains.mobil.routes import register_mobil_routes
 
+# Setup logging early untuk error handling
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Import other routes (legacy routes that haven't been migrated yet)
-from shared.routes.debug_routes import debug_bp
-from shared.routes.compatibility_routes import compatibility_bp
+try:
+    from shared.routes.debug_routes import debug_bp
+except ImportError as e:
+    logger.warning(f"Failed to import debug_routes: {e}. Creating empty blueprint.")
+    debug_bp = Blueprint('debug', __name__)
+
+try:
+    from shared.routes.compatibility_routes import compatibility_bp
+except ImportError as e:
+    logger.warning(f"Failed to import compatibility_routes: {e}. Creating empty blueprint.")
+    compatibility_bp = Blueprint('compatibility', __name__)
 # notification_bp removed - now handled by domains.notification.routes
 # service_routes_bp removed - now handled by domains.monitoring.routes (registered above)
 # circuit_breaker_bp removed - now handled by domains.monitoring.routes (registered above)
@@ -61,10 +74,6 @@ from shared.middlewares.error_handler import ErrorHandler
 
 # Import utils
 from shared.utils.notification_scheduler import start_notification_scheduler, stop_notification_scheduler
-
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 def create_app():
