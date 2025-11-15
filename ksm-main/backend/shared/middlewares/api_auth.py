@@ -3,6 +3,7 @@ from flask import request, jsonify, current_app
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity, get_jwt, decode_token
 from models import User
 from config.database import db
+from config.config import Config
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,14 +16,26 @@ def jwt_required_custom(fn):
     def wrapper(*args, **kwargs):
         try:
             # Skip authentication for OPTIONS requests (CORS preflight)
+            # Biarkan CORS library menangani OPTIONS request dengan automatic_options=True
+            # Kita hanya perlu melewati authentication, bukan menangani response
             if request.method == 'OPTIONS':
+                # Return empty response, CORS library akan menambahkan header yang diperlukan
                 from flask import make_response
-                response = make_response('', 200)
-                response.headers['Access-Control-Allow-Origin'] = '*'
-                response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-                response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, x-api-key, X-API-Key, Cache-Control, Accept, Origin, X-Requested-With'
-                response.headers['Access-Control-Allow-Credentials'] = 'true'
-                return response
+                origin = request.headers.get('Origin')
+                
+                # Jika origin ada di daftar CORS_ORIGINS, set header CORS
+                # Jika tidak, biarkan CORS library menanganinya
+                if origin and origin in Config.CORS_ORIGINS:
+                    response = make_response('', 200)
+                    response.headers['Access-Control-Allow-Origin'] = origin
+                    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+                    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-API-Key, Cache-Control, Accept, Origin, X-Requested-With'
+                    response.headers['Access-Control-Allow-Credentials'] = 'true'
+                    response.headers['Access-Control-Max-Age'] = '3600'
+                    return response
+                # Jika origin tidak ada di daftar, biarkan CORS library menanganinya
+                # dengan cara memanggil fungsi asli (yang akan di-handle oleh CORS)
+                return fn(*args, **kwargs)
             
             # Get Authorization header
             auth_header = request.headers.get('Authorization')

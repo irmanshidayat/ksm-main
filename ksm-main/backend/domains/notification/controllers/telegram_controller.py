@@ -95,15 +95,103 @@ class TelegramController:
 
 telegram_bp = Blueprint('telegram', __name__, url_prefix='/api/telegram')
 
-@telegram_bp.route('/test', methods=['GET'])
+@telegram_bp.route('/test', methods=['GET', 'POST', 'OPTIONS'])
+@jwt_required_custom
 def test_telegram():
-    """Test endpoint untuk memastikan blueprint berfungsi"""
-    logger.info("Testing telegram blueprint endpoint")
-    return jsonify({
-        'success': True,
-        'message': 'Telegram blueprint berfungsi dengan baik',
-        'timestamp': datetime.now().isoformat()
-    }), 200
+    """Test endpoint untuk memastikan blueprint berfungsi dan test koneksi telegram bot"""
+    
+    # Handle preflight request
+    if request.method == 'OPTIONS':
+        logger.debug("Handling OPTIONS preflight for telegram test")
+        return '', 200
+    
+    logger.info(f"Testing telegram endpoint - Method: {request.method}")
+    
+    try:
+        company_id = Config.DEFAULT_COMPANY_ID
+        logger.debug(f"Checking telegram settings for company: {company_id}")
+        settings = TelegramSettings.query.filter_by(company_id=company_id).first()
+        
+        if not settings:
+            logger.warning("Telegram settings not found in database")
+            return jsonify({
+                'success': False,
+                'message': 'Pengaturan telegram tidak ditemukan. Silakan konfigurasi bot token terlebih dahulu.',
+                'timestamp': datetime.now().isoformat()
+            }), 400
+        
+        if not settings.is_active:
+            logger.warning("Telegram bot is not active")
+            return jsonify({
+                'success': False,
+                'message': 'Bot telegram tidak aktif. Silakan aktifkan bot terlebih dahulu.',
+                'timestamp': datetime.now().isoformat()
+            }), 400
+        
+        if not settings.bot_token or not settings.bot_token.strip():
+            logger.warning("Bot token is empty or not set")
+            return jsonify({
+                'success': False,
+                'message': 'Bot token tidak tersedia. Silakan konfigurasi bot token terlebih dahulu.',
+                'timestamp': datetime.now().isoformat()
+            }), 400
+        
+        # Test koneksi ke Telegram API
+        bot_token = settings.bot_token
+        url = f"https://api.telegram.org/bot{bot_token}/getMe"
+        
+        try:
+            response = requests.get(url, timeout=10)
+            
+            if response.status_code == 200:
+                bot_info = response.json()
+                if bot_info.get('ok'):
+                    result = bot_info.get('result', {})
+                    return jsonify({
+                        'success': True,
+                        'message': 'Test bot berhasil! Bot telegram terhubung dengan baik.',
+                        'data': {
+                            'bot_name': result.get('first_name', ''),
+                            'bot_username': result.get('username', ''),
+                            'bot_id': result.get('id', '')
+                        },
+                        'timestamp': datetime.now().isoformat()
+                    }), 200
+                else:
+                    return jsonify({
+                        'success': False,
+                        'message': f'Telegram API error: {bot_info.get("description", "Unknown error")}',
+                        'timestamp': datetime.now().isoformat()
+                    }), 400
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': f'Gagal terhubung ke Telegram API: HTTP {response.status_code}',
+                    'timestamp': datetime.now().isoformat()
+                }), 400
+                
+        except requests.exceptions.Timeout:
+            return jsonify({
+                'success': False,
+                'message': 'Timeout: Tidak dapat terhubung ke Telegram API',
+                'timestamp': datetime.now().isoformat()
+            }), 408
+            
+        except requests.exceptions.RequestException as e:
+            return jsonify({
+                'success': False,
+                'message': f'Error koneksi: {str(e)}',
+                'timestamp': datetime.now().isoformat()
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Error in test telegram: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'message': f'Terjadi kesalahan: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
 @telegram_bp.route('/status', methods=['GET', 'OPTIONS'])
 def telegram_status():
@@ -457,6 +545,174 @@ def telegram_ping():
         'message': 'pong',
         'timestamp': datetime.now().isoformat()
     }), 200
+
+@telegram_bp.route('/webhook-info', methods=['GET', 'OPTIONS'])
+@jwt_required_custom
+def telegram_webhook_info():
+    """Endpoint untuk mendapatkan informasi webhook dari Telegram"""
+    
+    logger.info(f"Telegram webhook-info endpoint called - Method: {request.method}")
+    logger.debug(f"Request headers: {dict(request.headers)}")
+    
+    # Handle preflight request
+    if request.method == 'OPTIONS':
+        logger.debug("Handling OPTIONS preflight for telegram webhook-info")
+        return '', 200
+    
+    try:
+        company_id = Config.DEFAULT_COMPANY_ID
+        logger.debug(f"Getting webhook info for company: {company_id}")
+        
+        # Ambil settings dari database
+        try:
+            settings = TelegramSettings.query.filter_by(company_id=company_id).first()
+            
+            if not settings or not settings.bot_token:
+                logger.warning("Telegram bot token tidak ditemukan")
+                return jsonify({
+                    'success': False,
+                    'data': {
+                        'url': '',
+                        'has_custom_certificate': False,
+                        'pending_update_count': 0,
+                        'last_error_date': None,
+                        'last_error_message': None,
+                        'max_connections': None,
+                        'allowed_updates': None
+                    },
+                    'message': 'Bot token tidak ditemukan. Silakan konfigurasi bot token terlebih dahulu.'
+                }), 200
+            
+            # Ambil informasi webhook dari Telegram API
+            bot_token = settings.bot_token
+            url = f"https://api.telegram.org/bot{bot_token}/getWebhookInfo"
+            
+            try:
+                response = requests.get(url, timeout=10)
+                
+                if response.status_code == 200:
+                    telegram_data = response.json()
+                    
+                    if telegram_data.get('ok'):
+                        webhook_info = telegram_data.get('result', {})
+                        
+                        return jsonify({
+                            'success': True,
+                            'data': {
+                                'url': webhook_info.get('url', ''),
+                                'has_custom_certificate': webhook_info.get('has_custom_certificate', False),
+                                'pending_update_count': webhook_info.get('pending_update_count', 0),
+                                'last_error_date': webhook_info.get('last_error_date'),
+                                'last_error_message': webhook_info.get('last_error_message'),
+                                'max_connections': webhook_info.get('max_connections'),
+                                'allowed_updates': webhook_info.get('allowed_updates')
+                            },
+                            'timestamp': datetime.now().isoformat()
+                        }), 200
+                    else:
+                        logger.warning(f"Telegram API returned error: {telegram_data}")
+                        return jsonify({
+                            'success': False,
+                            'data': {
+                                'url': '',
+                                'has_custom_certificate': False,
+                                'pending_update_count': 0,
+                                'last_error_date': None,
+                                'last_error_message': None,
+                                'max_connections': None,
+                                'allowed_updates': None
+                            },
+                            'message': f"Telegram API error: {telegram_data.get('description', 'Unknown error')}"
+                        }), 200
+                else:
+                    logger.error(f"Failed to get webhook info: {response.status_code}")
+                    return jsonify({
+                        'success': False,
+                        'data': {
+                            'url': '',
+                            'has_custom_certificate': False,
+                            'pending_update_count': 0,
+                            'last_error_date': None,
+                            'last_error_message': None,
+                            'max_connections': None,
+                            'allowed_updates': None
+                        },
+                        'message': f'Gagal mengambil informasi webhook: HTTP {response.status_code}'
+                    }), 200
+                    
+            except requests.exceptions.Timeout:
+                logger.error("Timeout saat mengambil webhook info dari Telegram API")
+                return jsonify({
+                    'success': False,
+                    'data': {
+                        'url': '',
+                        'has_custom_certificate': False,
+                        'pending_update_count': 0,
+                        'last_error_date': None,
+                        'last_error_message': None,
+                        'max_connections': None,
+                        'allowed_updates': None
+                    },
+                    'message': 'Timeout: Tidak dapat terhubung ke Telegram API'
+                }), 200
+                
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Error koneksi ke Telegram API: {str(e)}")
+                return jsonify({
+                    'success': False,
+                    'data': {
+                        'url': '',
+                        'has_custom_certificate': False,
+                        'pending_update_count': 0,
+                        'last_error_date': None,
+                        'last_error_message': None,
+                        'max_connections': None,
+                        'allowed_updates': None
+                    },
+                    'message': f'Error koneksi: {str(e)}'
+                }), 200
+                
+        except Exception as db_error:
+            logger.error(f"Database error in telegram webhook-info: {str(db_error)}")
+            logger.error(traceback.format_exc())
+            return jsonify({
+                'success': False,
+                'data': {
+                    'url': '',
+                    'has_custom_certificate': False,
+                    'pending_update_count': 0,
+                    'last_error_date': None,
+                    'last_error_message': None,
+                    'max_connections': None,
+                    'allowed_updates': None
+                },
+                'message': 'Database belum siap',
+                'debug_info': {
+                    'error': str(db_error),
+                    'error_type': type(db_error).__name__
+                }
+            }), 200
+    
+    except Exception as e:
+        logger.error(f"Error in telegram webhook-info: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'data': {
+                'url': '',
+                'has_custom_certificate': False,
+                'pending_update_count': 0,
+                'last_error_date': None,
+                'last_error_message': None,
+                'max_connections': None,
+                'allowed_updates': None
+            },
+            'message': f'Terjadi kesalahan: {str(e)}',
+            'debug_info': {
+                'error': str(e),
+                'error_type': type(e).__name__
+            }
+        }), 500
 
 @telegram_bp.route('/webhook', methods=['POST'])
 def telegram_webhook_endpoint():
