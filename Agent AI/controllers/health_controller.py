@@ -23,29 +23,38 @@ def health_check():
         # Check database connection
         db_status = test_database_connection()
         
-        # Check LLM service
+        # Check LLM service (optional - tidak wajib untuk development)
         llm_status = llm_service.check_health()
         
         # Check RAG context service
         rag_status = rag_context_service.check_health()
         
-        # Overall health status
-        overall_healthy = (
-            db_status.get('success', False) and
-            llm_status.get('success', False) and
-            rag_status.get('success', False)
-        )
+        # Overall health status - database dan RAG wajib, LLM optional
+        # Untuk development, kita lebih toleran jika LLM tidak available
+        db_healthy = db_status.get('success', False)
+        rag_healthy = rag_status.get('success', False)
+        llm_available = llm_status.get('success', False)
+        
+        # Service healthy jika database dan RAG service OK
+        # LLM service optional untuk development
+        overall_healthy = db_healthy and rag_healthy
+        
+        # Status detail
+        status_detail = 'healthy' if overall_healthy else 'degraded'
+        if not db_healthy:
+            status_detail = 'unhealthy'
         
         return jsonify({
             'service': 'Agent AI',
-            'status': 'healthy' if overall_healthy else 'unhealthy',
+            'status': status_detail,
             'timestamp': datetime.now().isoformat(),
             'components': {
                 'database': db_status,
                 'llm_service': llm_status,
                 'rag_context_service': rag_status
             },
-            'version': '1.0.0'
+            'version': '1.0.0',
+            'note': 'LLM service is optional for development'
         }), 200 if overall_healthy else 503
         
     except Exception as e:

@@ -133,7 +133,20 @@ export const permissionApi = baseApi.injectEndpoints({
     // Get user accessible menus
     getUserMenus: builder.query<any[], void>({
       query: () => '/permission-management/user-menus',
-      transformResponse: (response: { success: boolean; data: any[] }) => response.data || [],
+      transformResponse: (response: { success: boolean; data: any[]; message?: string; error?: string }) => {
+        if (!response.success) {
+          console.error('[getUserMenus] API returned error:', response.error || response.message);
+          throw new Error(response.error || response.message || 'Gagal mengambil menu user');
+        }
+        return response.data || [];
+      },
+      transformErrorResponse: (response: any) => {
+        console.error('[getUserMenus] API error response:', response);
+        return {
+          error: response?.data?.error || response?.statusText || 'Gagal mengambil menu user',
+          status: response?.status
+        };
+      },
       providesTags: ['Permission'],
     }),
 

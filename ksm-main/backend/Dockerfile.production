@@ -1,5 +1,6 @@
 # KSM Main Backend Production Dockerfile
-FROM python:3.12-slim
+# Menggunakan Ubuntu 24.04 LTS sebagai base image
+FROM ubuntu:24.04
 
 # Set working directory
 WORKDIR /app
@@ -14,23 +15,64 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DB_PORT=3306 \
     DB_NAME=KSM_main \
     DB_USER=root \
-    DB_PASSWORD=password
+    DB_PASSWORD=password \
+    DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies untuk production
-RUN apt-get update && apt-get install -y \
+# Install system dependencies untuk production dengan retry mechanism
+# Mengatasi masalah DNS resolution dengan retry mechanism (5 attempts dengan exponential backoff)
+# Menggunakan timeout dan retry yang lebih agresif untuk mengatasi masalah DNS
+# DNS configuration dilakukan di level Docker daemon atau docker-compose build args
+RUN set -e; \
+    MAX_ATTEMPTS=5; \
+    APT_TIMEOUT=180; \
+    for i in $(seq 1 $MAX_ATTEMPTS); do \
+        echo "Attempt $i/$MAX_ATTEMPTS: Updating package lists (timeout: ${APT_TIMEOUT}s)..."; \
+        if timeout ${APT_TIMEOUT} apt-get update \
+            -o Acquire::http::Timeout=${APT_TIMEOUT} \
+            -o Acquire::ftp::Timeout=${APT_TIMEOUT} \
+            -o Acquire::https::Timeout=${APT_TIMEOUT} \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::No-Cache=True \
+            -o Acquire::http::Pipeline-Depth=0; then \
+            echo "✅ Package lists updated successfully"; \
+            break; \
+        else \
+            if [ $i -eq $MAX_ATTEMPTS ]; then \
+                echo "❌ All $MAX_ATTEMPTS attempts failed. Build will fail."; \
+                exit 1; \
+            fi; \
+            echo "⚠️  Attempt $i failed, waiting before retry..."; \
+            sleep $((i * 10)); \
+        fi; \
+    done && \
+    apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-dev \
+    python3.12-venv \
+    python3-pip \
     gcc \
     g++ \
     curl \
     default-libmysqlclient-dev \
     pkg-config \
+    coreutils \
     && rm -rf /var/lib/apt/lists/*
+
+# Set Python 3.12 sebagai default python dan siapkan virtual environment (menghindari PEP 668)
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
+    python3.12 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --upgrade pip
+
+# Gunakan virtual environment sebagai default Python & pip
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Copy requirements files
 COPY requirements.txt ./
 
-# Install Python dependencies untuk production
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies untuk production (di dalam virtual environment)
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .

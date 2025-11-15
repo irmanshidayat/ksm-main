@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import app
 from config.database import db
-from models.knowledge_base import User
+from models import User
 from werkzeug.security import generate_password_hash
 import logging
 

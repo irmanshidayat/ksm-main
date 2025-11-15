@@ -10,7 +10,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import app, db
-from models.knowledge_base import TelegramSettings
+from models import TelegramSettings
 from sqlalchemy import text
 
 def migrate_up():

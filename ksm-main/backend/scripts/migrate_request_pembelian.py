@@ -16,12 +16,33 @@ from config.database import db
 
 def create_app():
     app = Flask(__name__)
+    
+    # Import config untuk mendapatkan environment detection
+    from config.config import detect_environment, get_env_config
+    
+    # Detect environment
+    env_mode = detect_environment()
+    env_config = get_env_config()
+    
+    # Database configuration - menggunakan logic yang sama dengan init_database()
     db_user = os.getenv('DB_USER', 'root')
-    db_password = os.getenv('DB_PASSWORD', '')
-    db_host = os.getenv('DB_HOST', 'localhost')
-    db_port = os.getenv('DB_PORT', '3306')
+    # Handle DB_PASSWORD: jika empty string atau None, gunakan default berdasarkan environment
+    db_password_raw = os.getenv('DB_PASSWORD')
+    if db_password_raw is None or db_password_raw.strip() == '':
+        # Jika tidak ter-set atau empty, gunakan default dari env_config
+        # Docker mode: default password adalah 'admin123'
+        # Local/XAMPP mode: default password adalah '' (kosong)
+        db_password = env_config.get('DB_PASSWORD', 'admin123' if env_mode == 'docker' else '')
+        if env_mode == 'docker':
+            print(f"ℹ️  DB_PASSWORD not set in .env, using default: 'admin123' for Docker mode")
+    else:
+        db_password = db_password_raw
+    
+    db_host = os.getenv('DB_HOST') or env_config.get('DB_HOST', 'localhost')
+    db_port = os.getenv('DB_PORT') or str(env_config.get('DB_PORT', 3306))
     db_name = os.getenv('DB_NAME', 'KSM_main')
     charset = 'utf8mb4'
+    
     mysql_uri = f"mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?charset={charset}"
     app.config['SQLALCHEMY_DATABASE_URI'] = mysql_uri
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
