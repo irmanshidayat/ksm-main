@@ -233,12 +233,15 @@ services:
       context: ./frontend-vite
       dockerfile: Dockerfile.production
       args:
-        - VITE_APP_API_URL=http://localhost:8002
+        # Kosongkan VITE_APP_API_URL agar menggunakan window.location.origin di production
+        # Nginx akan reverse proxy /api/ ke backend
+        - VITE_APP_API_URL=
         - VITE_APP_ENVIRONMENT=development
     container_name: KSM-frontend-vite-dev
     restart: always
     environment:
-      - VITE_APP_API_URL=http://localhost:8002
+      # Kosongkan VITE_APP_API_URL agar menggunakan window.location.origin di production
+      - VITE_APP_API_URL=
       - VITE_APP_ENVIRONMENT=development
     ports:
       - "3006:3000"
