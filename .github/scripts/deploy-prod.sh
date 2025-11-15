@@ -1,0 +1,619 @@
+#!/bin/bash
+# =============================================================================
+# Deployment Script untuk Production Server
+# =============================================================================
+# Script ini dijalankan di server untuk melakukan deployment Docker Compose
+# =============================================================================
+
+set -e
+
+DEPLOY_PATH="${1:-/opt/ksm-main-prod}"
+
+cd "$DEPLOY_PATH"
+
+# Function to check if port is in use by Docker
+check_docker_port() {
+  local PORT=$1
+  # Check if any Docker container is using this port
+  docker ps --format "{{.ID}} {{.Ports}}" | grep -q ":$PORT->" && return 0 || return 1
+}
+
+# Function to kill process using a port
+kill_port() {
+  local PORT=$1
+  local FORCE=${2:-false}
+  echo "🔍 Checking port $PORT..."
+  
+  # First check if Docker container is using the port
+  if check_docker_port $PORT; then
+    echo "⚠️  Port $PORT is in use by Docker container..."
+    CONTAINER_ID=$(docker ps --format "{{.ID}} {{.Ports}}" | grep ":$PORT->" | awk '{print $1}' | head -1)
+    if [ -n "$CONTAINER_ID" ]; then
+      echo "🗑️  Removing container $CONTAINER_ID..."
+      docker rm -f $CONTAINER_ID 2>/dev/null || true
+      sleep 3
+    fi
+  fi
+  
+  # Find process using the port (try multiple methods)
+  local PID=""
+  
+  # Method 1: lsof (if available)
+  if command -v lsof >/dev/null 2>&1; then
+    PID=$(lsof -ti:$PORT 2>/dev/null || echo "")
+  fi
+  
+  # Method 2: ss + fuser (if lsof not available)
+  if [ -z "$PID" ] && command -v ss >/dev/null 2>&1; then
+    PID=$(ss -tlnp | grep ":$PORT " | awk '{print $7}' | cut -d',' -f2 | cut -d'=' -f2 | head -1 | grep -oE '[0-9]+' || echo "")
+  fi
+  
+  # Method 3: netstat (fallback)
+  if [ -z "$PID" ] && command -v netstat >/dev/null 2>&1; then
+    PID=$(netstat -tlnp 2>/dev/null | grep ":$PORT " | awk '{print $7}' | cut -d'/' -f1 | head -1 || echo "")
+  fi
+  
+  # Method 4: fuser (direct)
+  if [ -z "$PID" ] && command -v fuser >/dev/null 2>&1; then
+    PID=$(fuser $PORT/tcp 2>/dev/null | awk '{print $1}' || echo "")
+  fi
+  
+  if [ -n "$PID" ] && [ "$PID" != "-" ] && [ "$PID" != "cannot" ]; then
+    echo "⚠️  Port $PORT is in use by PID $PID. Killing process..."
+    kill -9 $PID 2>/dev/null || true
+    sleep 2
+    
+    # Verify port is freed
+    if lsof -ti:$PORT >/dev/null 2>&1 || (command -v ss >/dev/null 2>&1 && ss -tlnp | grep -q ":$PORT "); then
+      echo "⚠️  Port $PORT still in use, trying harder..."
+      pkill -9 -f ":$PORT" || true
+      sleep 2
+    fi
+    echo "✅ Port $PORT freed"
+  else
+    # Double check with Docker
+    if check_docker_port $PORT; then
+      echo "⚠️  Port $PORT still in use by Docker, removing container..."
+      CONTAINER_ID=$(docker ps --format "{{.ID}} {{.Ports}}" | grep ":$PORT->" | awk '{print $1}' | head -1)
+      if [ -n "$CONTAINER_ID" ]; then
+        docker rm -f $CONTAINER_ID 2>/dev/null || true
+        sleep 2
+      fi
+    else
+      echo "✅ Port $PORT is free"
+    fi
+  fi
+}
+
+# Function to cleanup Docker resources
+cleanup_docker() {
+  echo "🧹 Cleaning up Docker resources..."
+  
+  # First, explicitly remove containers by name that might conflict
+  echo "🗑️  Removing containers by name (preventing name conflicts)..."
+  CONFLICT_CONTAINERS=(
+    "KSM-mysql-prod"
+    "KSM-redis-prod"
+    "KSM-backend-prod"
+    "KSM-frontend-prod"
+    "KSM-frontend-vite-prod"
+    "KSM-nginx-prod"
+    "KSM-agent-ai-prod"
+    "KSM-prometheus"
+    "KSM-grafana"
+    "KSM-adminer-prod"
+  )
+  
+  for CONTAINER_NAME in "${CONFLICT_CONTAINERS[@]}"; do
+    if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
+      echo "⚠️  Found existing container: $CONTAINER_NAME, removing..."
+      docker stop "$CONTAINER_NAME" 2>/dev/null || true
+      docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+      sleep 1
+    fi
+  done
+  
+  # Stop and remove all containers
+  echo "🛑 Stopping existing containers..."
+  docker-compose -f docker-compose.yml down --remove-orphans || true
+  
+  # Wait for containers to fully stop
+  sleep 5
+  
+  # Remove any dangling containers with KSM prefix
+  echo "🗑️  Removing dangling containers..."
+  docker ps -a --filter "name=KSM-" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
+  
+  # Double check: Remove containers by name again (in case they were recreated)
+  for CONTAINER_NAME in "${CONFLICT_CONTAINERS[@]}"; do
+    if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
+      echo "⚠️  Still found container: $CONTAINER_NAME, force removing..."
+      docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+    fi
+  done
+  
+  # Force remove any containers using required ports
+  for PORT in 8001 3308 6380 5001 3002 3005 8082 8443 9091 3003 8083; do
+    CONTAINER_ID=$(docker ps --format "{{.ID}} {{.Ports}}" | grep ":$PORT->" | awk '{print $1}' | head -1)
+    if [ -n "$CONTAINER_ID" ]; then
+      echo "⚠️  Found container $CONTAINER_ID using port $PORT, removing..."
+      docker rm -f $CONTAINER_ID 2>/dev/null || true
+    fi
+  done
+  
+  # Remove any dangling networks
+  echo "🗑️  Removing dangling networks..."
+  docker network ls --filter "name=KSM-prod" --format "{{.ID}}" | xargs -r docker network rm 2>/dev/null || true
+  
+  # Prune unused networks
+  echo "🧹 Pruning unused networks..."
+  docker network prune -f || true
+  
+  # Cleanup iptables rules that might be holding ports
+  # Note: This requires root/sudo, so we'll try but not fail if it doesn't work
+  echo "🧹 Cleaning up iptables rules (if accessible)..."
+  if command -v iptables >/dev/null 2>&1 && [ "$(id -u)" = "0" ]; then
+    # Remove Docker iptables rules for our ports (requires root)
+    for PORT in 8001 3308 6380 5001 3002 3005 8082 8443 9091 3003 8083; do
+      # Try to find and remove NAT rules
+      iptables -t nat -S DOCKER 2>/dev/null | grep "dport $PORT" | sed 's/-A/-D/' | xargs -r iptables -t nat 2>/dev/null || true
+      # Try to find and remove filter rules
+      iptables -t filter -S DOCKER 2>/dev/null | grep "dport $PORT" | sed 's/-A/-D/' | xargs -r iptables -t filter 2>/dev/null || true
+    done
+  else
+    echo "⚠️  Skipping iptables cleanup (requires root privileges)"
+  fi
+  
+  # Wait for Docker daemon to release ports
+  echo "⏳ Waiting for Docker daemon to release ports..."
+  sleep 10
+  
+  echo "✅ Docker cleanup completed"
+}
+
+# Cleanup Docker resources first
+cleanup_docker
+
+# Check and free required ports
+echo "🔍 Checking required ports..."
+kill_port 8001  # Backend
+kill_port 3308  # MySQL
+kill_port 6380  # Redis
+kill_port 5001  # Agent AI
+kill_port 3002  # Frontend (CRA)
+kill_port 3005  # Frontend Vite
+kill_port 8082  # Nginx HTTP
+kill_port 8443  # Nginx HTTPS
+kill_port 9091  # Prometheus
+kill_port 3003  # Grafana
+kill_port 8083  # Adminer
+
+# Wait a bit for ports to be fully released
+echo "⏳ Waiting for ports to be fully released..."
+sleep 10
+
+# Verify ports are free
+echo "🔍 Verifying ports are free..."
+for PORT in 8001 3308 6380 5001 3002 3005 8082 8443 9091 3003 8083; do
+  # Check Docker containers first
+  if check_docker_port $PORT; then
+    echo "⚠️  Warning: Port $PORT is still in use by Docker container, attempting to free..."
+    CONTAINER_ID=$(docker ps --format "{{.ID}} {{.Ports}}" | grep ":$PORT->" | awk '{print $1}' | head -1)
+    if [ -n "$CONTAINER_ID" ]; then
+      echo "🗑️  Force removing container $CONTAINER_ID..."
+      docker rm -f $CONTAINER_ID 2>/dev/null || true
+      sleep 3
+    fi
+  fi
+  
+  # Check system processes
+  if lsof -ti:$PORT >/dev/null 2>&1 || (command -v ss >/dev/null 2>&1 && ss -tlnp | grep -q ":$PORT "); then
+    echo "⚠️  Warning: Port $PORT is still in use by system process, attempting to free..."
+    kill_port $PORT true
+    sleep 3
+  fi
+done
+
+# Final wait for Docker daemon
+echo "⏳ Final wait for Docker daemon to release all ports..."
+sleep 10
+
+# Check if .env file exists
+if [ ! -f .env ]; then
+  echo "⚠️  Warning: .env file not found. Creating from example..."
+  if [ -f env.example ]; then
+    cp env.example .env
+    echo "✅ Created .env from env.example"
+  else
+    echo "⚠️  env.example not found. Services may fail without proper configuration."
+  fi
+fi
+
+# Build and start services
+echo "🔨 Building Docker images..."
+
+# Build dengan retry dan timeout yang lebih baik
+MAX_BUILD_RETRIES=3
+BUILD_RETRY=0
+BUILD_SUCCESS=false
+
+while [ $BUILD_RETRY -lt $MAX_BUILD_RETRIES ] && [ "$BUILD_SUCCESS" = "false" ]; do
+  BUILD_RETRY=$((BUILD_RETRY + 1))
+  echo "🔄 Build attempt $BUILD_RETRY/$MAX_BUILD_RETRIES..."
+  
+  # Build dengan timeout per service untuk menghindari hang
+  if DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 \
+     timeout 1800 docker-compose -f docker-compose.yml build --parallel --progress=plain 2>&1 | tee /tmp/build.log; then
+    BUILD_SUCCESS=true
+    echo "✅ Build successful!"
+  else
+    BUILD_EXIT_CODE=${PIPESTATUS[0]}
+    if [ $BUILD_EXIT_CODE -eq 124 ]; then
+      echo "⏱️  Build timeout (30 minutes). Retrying..."
+    else
+      echo "❌ Build failed with exit code $BUILD_EXIT_CODE"
+      echo "📋 Last 50 lines of build log:"
+      tail -50 /tmp/build.log || true
+      
+      if [ $BUILD_RETRY -lt $MAX_BUILD_RETRIES ]; then
+        echo "🔄 Retrying in 10 seconds..."
+        sleep 10
+      else
+        echo "❌ All build attempts failed!"
+        docker-compose -f docker-compose.yml logs --tail=50 || true
+        exit 1
+      fi
+    fi
+  fi
+done
+
+if [ "$BUILD_SUCCESS" = "false" ]; then
+  echo "❌ Build failed after $MAX_BUILD_RETRIES attempts!"
+  exit 1
+fi
+
+# Start services with retry logic
+echo "🚀 Starting services..."
+
+# Final check before starting - remove containers by name to prevent conflicts
+echo "🔍 Final pre-start container name check..."
+CONFLICT_CONTAINERS=(
+  "KSM-mysql-prod"
+  "KSM-redis-prod"
+  "KSM-backend-prod"
+  "KSM-frontend-prod"
+  "KSM-frontend-vite-prod"
+  "KSM-nginx-prod"
+  "KSM-agent-ai-prod"
+  "KSM-prometheus"
+  "KSM-grafana"
+  "KSM-adminer-prod"
+)
+
+for CONTAINER_NAME in "${CONFLICT_CONTAINERS[@]}"; do
+  if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
+    echo "⚠️  Found conflicting container: $CONTAINER_NAME, force removing..."
+    docker stop "$CONTAINER_NAME" 2>/dev/null || true
+    docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+    sleep 1
+  fi
+done
+
+# Final check before starting - ensure no containers are using our ports
+echo "🔍 Final pre-start port check..."
+for PORT in 8001 3308 6380 5001 3002 3005 8082 8443 9091 3003 8083; do
+  if check_docker_port $PORT; then
+    echo "⚠️  Port $PORT is still in use by Docker container before start, removing..."
+    CONTAINER_ID=$(docker ps --format "{{.ID}} {{.Ports}}" | grep ":$PORT->" | awk '{print $1}' | head -1)
+    if [ -n "$CONTAINER_ID" ]; then
+      echo "🗑️  Force removing container $CONTAINER_ID..."
+      docker rm -f $CONTAINER_ID 2>/dev/null || true
+      sleep 2
+    fi
+  fi
+done
+sleep 5
+
+MAX_START_RETRIES=3
+START_RETRY=0
+START_SUCCESS=false
+
+while [ $START_RETRY -lt $MAX_START_RETRIES ] && [ "$START_SUCCESS" = "false" ]; do
+  START_RETRY=$((START_RETRY + 1))
+  echo "🔄 Start attempt $START_RETRY/$MAX_START_RETRIES..."
+  
+  if docker-compose -f docker-compose.yml up -d 2>&1 | tee /tmp/start.log; then
+    # Check if there are any container name conflicts
+    if grep -q "container name.*is already in use" /tmp/start.log || grep -q "Conflict.*container name" /tmp/start.log; then
+      echo "⚠️  Container name conflict detected. Cleaning up and retrying..."
+      
+      # Extract container name from error message
+      CONFLICT_CONTAINER=$(grep -oE "container name.*\"([^\"]+)\"" /tmp/start.log | grep -oE "\"([^\"]+)\"" | tr -d '"' | head -1 || echo "")
+      if [ -z "$CONFLICT_CONTAINER" ]; then
+        # Try alternative format: "Conflict. The container name \"/KSM-mysql-prod\" is already in use"
+        CONFLICT_CONTAINER=$(grep -oE "container name.*\"([^\"]+)\"" /tmp/start.log | grep -oE "/[^\"]+" | tr -d '/' | head -1 || echo "")
+      fi
+      
+      if [ -n "$CONFLICT_CONTAINER" ]; then
+        echo "🔍 Removing conflicting container: $CONFLICT_CONTAINER..."
+        docker stop "$CONFLICT_CONTAINER" 2>/dev/null || true
+        docker rm -f "$CONFLICT_CONTAINER" 2>/dev/null || true
+      fi
+      
+      # Remove all KSM containers by name
+      for CONTAINER_NAME in "${CONFLICT_CONTAINERS[@]}"; do
+        if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
+          echo "🔍 Removing container: $CONTAINER_NAME..."
+          docker stop "$CONTAINER_NAME" 2>/dev/null || true
+          docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+        fi
+      done
+      
+      # Cleanup and retry
+      cleanup_docker
+      sleep 10
+      
+      if [ $START_RETRY -lt $MAX_START_RETRIES ]; then
+        continue
+      fi
+    # Check if there are any port binding errors
+    elif grep -q "port is already allocated" /tmp/start.log; then
+      echo "⚠️  Port conflict detected. Cleaning up and retrying..."
+      
+      # Extract port from error message (format: "Bind for 0.0.0.0:8001 failed: port is already allocated")
+      CONFLICT_PORT=$(grep -oE "Bind for [0-9.]+:([0-9]+)" /tmp/start.log | grep -oE "[0-9]+" | tail -1 || echo "")
+      if [ -z "$CONFLICT_PORT" ]; then
+        # Try alternative format
+        CONFLICT_PORT=$(grep "port is already allocated" /tmp/start.log | grep -oE ":[0-9]+" | grep -oE "[0-9]+" | head -1 || echo "")
+      fi
+      if [ -n "$CONFLICT_PORT" ]; then
+        echo "🔍 Freeing port $CONFLICT_PORT..."
+        kill_port $CONFLICT_PORT true
+      fi
+      
+      # Cleanup and retry
+      cleanup_docker
+      
+      # Additional aggressive cleanup for the conflicting port
+      if [ -n "$CONFLICT_PORT" ]; then
+        echo "🔍 Performing aggressive cleanup for port $CONFLICT_PORT..."
+        kill_port $CONFLICT_PORT true
+      fi
+      sleep 10
+      
+      if [ $START_RETRY -lt $MAX_START_RETRIES ]; then
+        continue
+      fi
+    else
+      START_SUCCESS=true
+      echo "✅ Services started successfully!"
+    fi
+  else
+    START_EXIT_CODE=${PIPESTATUS[0]}
+    echo "❌ Start failed with exit code $START_EXIT_CODE"
+    
+    # Check for container name conflicts
+    if grep -q "container name.*is already in use" /tmp/start.log || grep -q "Conflict.*container name" /tmp/start.log; then
+      echo "⚠️  Container name conflict detected. Attempting to resolve..."
+      
+      # Extract all conflicting container names
+      CONFLICT_CONTAINERS_LIST=$(grep -oE "container name.*\"([^\"]+)\"" /tmp/start.log | grep -oE "\"([^\"]+)\"" | tr -d '"' | sort -u || echo "")
+      if [ -z "$CONFLICT_CONTAINERS_LIST" ]; then
+        # Try alternative format
+        CONFLICT_CONTAINERS_LIST=$(grep -oE "container name.*\"([^\"]+)\"" /tmp/start.log | grep -oE "/[^\"]+" | tr -d '/' | sort -u || echo "")
+      fi
+      
+      if [ -n "$CONFLICT_CONTAINERS_LIST" ]; then
+        echo "🔍 Removing conflicting containers..."
+        echo "$CONFLICT_CONTAINERS_LIST" | while read CONTAINER_NAME; do
+          if [ -n "$CONTAINER_NAME" ]; then
+            echo "  🔍 Removing container: $CONTAINER_NAME..."
+            docker stop "$CONTAINER_NAME" 2>/dev/null || true
+            docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+          fi
+        done
+      fi
+      
+      # Remove all KSM containers by name
+      for CONTAINER_NAME in "${CONFLICT_CONTAINERS[@]}"; do
+        if docker ps -a --format "{{.Names}}" | grep -q "^$CONTAINER_NAME$"; then
+          echo "🔍 Removing container: $CONTAINER_NAME..."
+          docker stop "$CONTAINER_NAME" 2>/dev/null || true
+          docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+        fi
+      done
+      
+      # Cleanup and retry
+      cleanup_docker
+      sleep 10
+      
+      if [ $START_RETRY -lt $MAX_START_RETRIES ]; then
+        continue
+      fi
+    # Check for port conflicts
+    elif grep -q "port is already allocated" /tmp/start.log; then
+      echo "⚠️  Port conflict detected. Attempting to resolve..."
+      
+      # Extract all conflicting ports (format: "Bind for 0.0.0.0:8001 failed: port is already allocated")
+      CONFLICT_PORTS=$(grep -oE "Bind for [0-9.]+:([0-9]+)" /tmp/start.log | grep -oE "[0-9]+" | sort -u || echo "")
+      if [ -n "$CONFLICT_PORTS" ]; then
+        echo "🔍 Freeing conflicting ports..."
+        echo "$CONFLICT_PORTS" | while read PORT; do
+          if [ -n "$PORT" ]; then
+            echo "  🔍 Freeing port $PORT..."
+            kill_port $PORT true
+          fi
+        done
+      fi
+      
+      # Cleanup and retry
+      cleanup_docker
+      
+      # Additional aggressive cleanup for all ports
+      echo "🔍 Performing aggressive cleanup for all conflicting ports..."
+      if [ -n "$CONFLICT_PORTS" ]; then
+        echo "$CONFLICT_PORTS" | while read PORT; do
+          if [ -n "$PORT" ]; then
+            kill_port $PORT true
+          fi
+        done
+      fi
+      sleep 10
+      
+      if [ $START_RETRY -lt $MAX_START_RETRIES ]; then
+        continue
+      fi
+    fi
+    
+    if [ $START_RETRY -eq $MAX_START_RETRIES ]; then
+      echo "❌ Failed to start services after $MAX_START_RETRIES attempts!"
+      echo "📋 Last 50 lines of start log:"
+      tail -50 /tmp/start.log || true
+      echo ""
+      echo "📋 Container status:"
+      docker-compose -f docker-compose.yml ps || true
+      echo ""
+      echo "📋 Recent logs:"
+      docker-compose -f docker-compose.yml logs --tail=50 || true
+      exit 1
+    fi
+  fi
+done
+
+if [ "$START_SUCCESS" = "false" ]; then
+  echo "❌ Failed to start services after $MAX_START_RETRIES attempts!"
+  exit 1
+fi
+
+# Wait for services to be healthy
+echo "⏳ Waiting for services to start (60 seconds)..."
+sleep 60
+
+# Check service status
+echo "📊 Service status:"
+docker-compose -f docker-compose.yml ps
+
+# Show any failed containers
+FAILED_CONTAINERS=$(docker-compose -f docker-compose.yml ps | grep -E "(Exit|Restarting|unhealthy)" || true)
+if [ -n "$FAILED_CONTAINERS" ]; then
+  echo "⚠️  Some containers have issues:"
+  echo "$FAILED_CONTAINERS"
+  echo ""
+  echo "📋 Showing logs for failed containers:"
+  docker-compose -f docker-compose.yml logs --tail=100
+fi
+
+# Check SSL certificate
+echo ""
+echo "🔐 Checking SSL certificate..."
+SSL_DIR="$DEPLOY_PATH/infrastructure/nginx/ssl"
+CERT_FILE="$SSL_DIR/cert.pem"
+KEY_FILE="$SSL_DIR/key.pem"
+
+# Also check alternative path (old structure)
+if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
+  ALT_SSL_DIR="$DEPLOY_PATH/ksm-main/infrastructure/nginx/ssl"
+  ALT_CERT_FILE="$ALT_SSL_DIR/cert.pem"
+  ALT_KEY_FILE="$ALT_SSL_DIR/key.pem"
+  
+  if [ -f "$ALT_CERT_FILE" ] && [ -f "$ALT_KEY_FILE" ]; then
+    echo "✅ SSL certificate files found in alternative location"
+    echo "   Certificate: $ALT_CERT_FILE"
+    echo "   Key: $ALT_KEY_FILE"
+    CERT_FILE="$ALT_CERT_FILE"
+    KEY_FILE="$ALT_KEY_FILE"
+  else
+    echo "⚠️  SSL certificate files not found!"
+    echo "   Checked locations:"
+    echo "   - $CERT_FILE"
+    echo "   - $KEY_FILE"
+    echo "   - $ALT_CERT_FILE"
+    echo "   - $ALT_KEY_FILE"
+    echo ""
+    echo "💡 To fix SSL certificate issue:"
+    echo "   1. SSH to server and navigate to deployment directory"
+    echo "   2. Run: ./scripts/setup-ssl.sh prod your-email@example.com"
+    echo "   3. Or check: ./scripts/check-ssl.sh prod"
+  fi
+else
+  echo "✅ SSL certificate files found"
+  echo "   Certificate: $CERT_FILE"
+  echo "   Key: $KEY_FILE"
+fi
+
+if [ -f "$CERT_FILE" ] && [ -f "$KEY_FILE" ]; then
+  # Check certificate validity if openssl is available
+  if command -v openssl >/dev/null 2>&1; then
+    CERT_SUBJECT=$(openssl x509 -in "$CERT_FILE" -noout -subject 2>/dev/null | sed 's/subject=//' || echo "")
+    CERT_EXPIRY=$(openssl x509 -in "$CERT_FILE" -noout -enddate 2>/dev/null | cut -d= -f2 || echo "")
+    
+    if [ -n "$CERT_SUBJECT" ]; then
+      echo "   Subject: $CERT_SUBJECT"
+      if [ -n "$CERT_EXPIRY" ]; then
+        echo "   Expires: $CERT_EXPIRY"
+        
+        # Check if certificate matches domain
+        if echo "$CERT_SUBJECT" | grep -q "report.ptkiansantang.com"; then
+          echo "✅ Certificate matches domain"
+          
+          # Check if certificate chain is complete (fullchain)
+          CERT_CHAIN_COUNT=$(grep -c "BEGIN CERTIFICATE" "$CERT_FILE" 2>/dev/null || echo "0")
+          if [ "$CERT_CHAIN_COUNT" -lt 2 ]; then
+            echo "⚠️  Warning: Certificate chain mungkin tidak lengkap (hanya 1 certificate ditemukan)"
+            echo "   Let's Encrypt memerlukan fullchain (certificate + intermediate)"
+            echo "   Pastikan cert.pem adalah fullchain.pem dari Let's Encrypt"
+          else
+            echo "✅ Certificate chain lengkap ($CERT_CHAIN_COUNT certificates)"
+          fi
+          
+          # Restart nginx container untuk memastikan SSL certificate di-load
+          echo ""
+          echo "🔄 Restarting nginx container untuk memuat SSL certificate..."
+          if docker ps --format "{{.Names}}" | grep -q "^KSM-nginx-prod$"; then
+            # Try reload first (graceful)
+            if docker exec KSM-nginx-prod nginx -t >/dev/null 2>&1; then
+              echo "   Reloading nginx config..."
+              docker exec KSM-nginx-prod nginx -s reload 2>/dev/null && echo "✅ Nginx config reloaded" || {
+                echo "⚠️  Reload failed, restarting container..."
+                docker-compose -f docker-compose.yml restart nginx-prod 2>/dev/null || true
+                sleep 5
+                echo "✅ Nginx container restarted"
+              }
+            else
+              echo "⚠️  Nginx config test failed, restarting container..."
+              docker-compose -f docker-compose.yml restart nginx-prod 2>/dev/null || true
+              sleep 5
+              echo "✅ Nginx container restarted"
+            fi
+          else
+            echo "⚠️  Nginx container tidak berjalan, akan di-start oleh docker-compose..."
+          fi
+        else
+          echo "⚠️  Certificate does NOT match domain report.ptkiansantang.com"
+          echo "   Run: ./scripts/setup-ssl.sh prod your-email@example.com"
+        fi
+      fi
+    fi
+  else
+    # Even without openssl, restart nginx if certificate files exist
+    echo ""
+    echo "🔄 Restarting nginx container untuk memuat SSL certificate..."
+    if docker ps --format "{{.Names}}" | grep -q "^KSM-nginx-prod$"; then
+      if docker exec KSM-nginx-prod nginx -t >/dev/null 2>&1; then
+        docker exec KSM-nginx-prod nginx -s reload 2>/dev/null && echo "✅ Nginx config reloaded" || {
+          docker-compose -f docker-compose.yml restart nginx-prod 2>/dev/null || true
+          sleep 5
+          echo "✅ Nginx container restarted"
+        }
+      else
+        docker-compose -f docker-compose.yml restart nginx-prod 2>/dev/null || true
+        sleep 5
+        echo "✅ Nginx container restarted"
+      fi
+    fi
+  fi
+fi
+
+echo ""
+echo "✅ Deployment script completed successfully!"
+

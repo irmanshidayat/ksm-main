@@ -145,6 +145,8 @@ services:
       - REDIS_URL=redis://redis-prod:6379/0
       # Jika menggunakan Redis password, ubah menjadi: redis://:${REDIS_PASSWORD}@redis-prod:6379/0
       - AGENT_AI_URL=http://agent-ai-prod:5000
+      - QDRANT_URL=${QDRANT_URL:-}
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
       - LOG_LEVEL=INFO
       # Set encryption key secara eksplisit untuk konsistensi
       - EMAIL_DOMAIN_ENCRYPTION_KEY=nGLXDhCPmhCx5WugGHstyCkT7RY7P066rE_PnN5Hcqk=
