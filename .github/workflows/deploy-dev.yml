@@ -593,6 +593,47 @@ jobs:
               echo "📋 Showing logs for failed containers:"
               docker-compose -f docker-compose.yml logs --tail=100
             fi
+            
+            # Check SSL certificate
+            echo ""
+            echo "🔐 Checking SSL certificate..."
+            SSL_DIR="\$DEPLOY_PATH/infrastructure/nginx/ssl"
+            CERT_FILE="\$SSL_DIR/cert.pem"
+            KEY_FILE="\$SSL_DIR/key.pem"
+            
+            if [ ! -f "\$CERT_FILE" ] || [ ! -f "\$KEY_FILE" ]; then
+              echo "⚠️  SSL certificate files not found!"
+              echo "   Certificate: \$CERT_FILE"
+              echo "   Key: \$KEY_FILE"
+              echo ""
+              echo "💡 To fix SSL certificate issue:"
+              echo "   1. SSH to server: ssh \${{ secrets.SSH_USER_DEV }}@\${{ secrets.SSH_HOST_DEV }}"
+              echo "   2. Run: cd \$DEPLOY_PATH && ./scripts/setup-ssl.sh dev your-email@example.com"
+              echo "   3. Or check: ./scripts/check-ssl.sh dev"
+            else
+              echo "✅ SSL certificate files exist"
+              
+              # Check certificate validity if openssl is available
+              if command -v openssl >/dev/null 2>&1; then
+                CERT_SUBJECT=\$(openssl x509 -in "\$CERT_FILE" -noout -subject 2>/dev/null | sed 's/subject=//' || echo "")
+                CERT_EXPIRY=\$(openssl x509 -in "\$CERT_FILE" -noout -enddate 2>/dev/null | cut -d= -f2 || echo "")
+                
+                if [ -n "\$CERT_SUBJECT" ]; then
+                  echo "   Subject: \$CERT_SUBJECT"
+                  if [ -n "\$CERT_EXPIRY" ]; then
+                    echo "   Expires: \$CERT_EXPIRY"
+                    
+                    # Check if certificate matches domain
+                    if echo "\$CERT_SUBJECT" | grep -q "devreport.ptkiansantang.com"; then
+                      echo "✅ Certificate matches domain"
+                    else
+                      echo "⚠️  Certificate does NOT match domain devreport.ptkiansantang.com"
+                      echo "   Run: ./scripts/setup-ssl.sh dev your-email@example.com"
+                    fi
+                  fi
+                fi
+              fi
+            fi
           EOF
 
       - name: Verify deployment
