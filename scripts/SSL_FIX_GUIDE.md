@@ -90,9 +90,52 @@ docker-compose restart nginx-dev
 3. Tunggu beberapa menit untuk DNS propagation
 4. Coba setup SSL lagi
 
-### Port 80 blocked
+### Port 80 digunakan project lain
 
-**Gejala:** Let's Encrypt tidak bisa verify domain karena port 80 tidak accessible
+**Gejala:** Port 80 sudah digunakan oleh project lain, script setup SSL gagal
+
+**Solusi (Webroot Method - Recommended):**
+Script `setup-ssl.sh` sekarang otomatis menggunakan **webroot method** yang tidak perlu stop service di port 80.
+
+1. **Pastikan nginx container KSM berjalan:**
+   ```bash
+   cd /opt/ksm-main-dev
+   docker-compose up -d nginx-dev
+   ```
+
+2. **Pastikan nginx sudah dikonfigurasi untuk webroot:**
+   - Nginx config sudah include location `/.well-known/acme-challenge/` (sudah ada di `nginx.dev.conf`)
+   - Jika belum, pastikan ada di config:
+     ```nginx
+     location /.well-known/acme-challenge/ {
+         root /var/www/certbot;
+     }
+     ```
+
+3. **Jalankan setup SSL:**
+   ```bash
+   ./scripts/setup-ssl.sh dev your-email@example.com
+   ```
+   
+   Script akan otomatis:
+   - Deteksi apakah nginx berjalan dan dikonfigurasi untuk webroot
+   - Gunakan webroot method (tidak perlu stop service lain)
+   - Fallback ke standalone method jika webroot tidak tersedia
+
+**Keuntungan Webroot Method:**
+- ✅ Tidak perlu stop service di port 80
+- ✅ Tidak mengganggu project lain
+- ✅ Nginx container tetap berjalan selama proses
+- ✅ Lebih aman dan stabil
+
+**Jika Webroot Method Gagal:**
+Script akan otomatis fallback ke standalone method, yang memerlukan port 80 bebas. Dalam kasus ini:
+1. Hentikan sementara service lain yang menggunakan port 80
+2. Atau gunakan DNS-01 challenge (tidak memerlukan port 80)
+
+### Port 80 blocked oleh firewall
+
+**Gejala:** Let's Encrypt tidak bisa verify domain karena port 80 tidak accessible dari internet
 
 **Solusi:**
 1. Pastikan port 80 terbuka di firewall

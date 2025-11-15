@@ -231,6 +231,7 @@ services:
       - ./infrastructure/nginx/nginx.prod.conf:/etc/nginx/nginx.conf
       - ./infrastructure/nginx/ssl:/etc/nginx/ssl
       - ./logs/nginx:/var/log/nginx
+      - /var/www/certbot:/var/www/certbot:ro  # Webroot untuk Let's Encrypt validation
     depends_on:
       ksm-frontend-prod:
         condition: service_started

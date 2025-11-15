@@ -264,6 +264,7 @@ services:
       - ./infrastructure/nginx/nginx.dev.conf:/etc/nginx/nginx.conf
       - ./infrastructure/nginx/ssl:/etc/nginx/ssl
       - ./logs/nginx-dev:/var/log/nginx
+      - /var/www/certbot:/var/www/certbot:ro  # Webroot untuk Let's Encrypt validation
     depends_on:
       ksm-frontend-vite-dev:
         condition: service_started

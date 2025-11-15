@@ -75,88 +75,129 @@ else
     echo -e "${GREEN}✅ Certbot sudah terinstall${NC}"
 fi
 
-# Step 2: Check and stop services using port 80
+# Step 2: Prepare webroot directory dan check nginx configuration
 echo ""
-echo -e "${BLUE}🛑 Step 2: Memeriksa dan menghentikan service yang menggunakan port 80...${NC}"
+echo -e "${BLUE}📁 Step 2: Mempersiapkan webroot directory untuk Let's Encrypt...${NC}"
 
-# Check what's using port 80
-PORT_80_USAGE=$(lsof -i :80 2>/dev/null || netstat -tulpn | grep :80 | head -1 || ss -tulpn | grep :80 | head -1 || echo "")
+# Create certbot webroot directory
+WEBROOT_PATH="/var/www/certbot"
+mkdir -p "$WEBROOT_PATH"
+chmod 755 "$WEBROOT_PATH"
 
-if [ -n "$PORT_80_USAGE" ]; then
-    echo -e "${YELLOW}⚠️  Port 80 sedang digunakan:${NC}"
-    echo "$PORT_80_USAGE"
-    echo ""
-    
-    # Stop nginx container if running
-    cd "$DEPLOY_PATH" || exit 1
-    if docker-compose ps 2>/dev/null | grep -q "nginx"; then
-        echo "Menghentikan nginx container..."
-        docker-compose stop nginx-dev 2>/dev/null || docker-compose stop nginx-prod 2>/dev/null || true
-        sleep 2
-    fi
-    
-    # Stop system nginx if running
-    if systemctl is-active --quiet nginx 2>/dev/null; then
-        echo "Menghentikan system nginx..."
-        systemctl stop nginx 2>/dev/null || true
-        sleep 2
-    fi
-    
-    # Stop any docker container using port 80
-    DOCKER_PORT_80=$(docker ps --format "{{.ID}} {{.Ports}}" | grep ":80->" | awk '{print $1}' | head -1)
-    if [ -n "$DOCKER_PORT_80" ]; then
-        echo "Menghentikan docker container yang menggunakan port 80..."
-        docker stop $DOCKER_PORT_80 2>/dev/null || true
-        sleep 2
-    fi
-    
-    # Verify port 80 is free
-    sleep 2
-    PORT_80_CHECK=$(lsof -i :80 2>/dev/null || netstat -tulpn | grep :80 | head -1 || ss -tulpn | grep :80 | head -1 || echo "")
-    if [ -n "$PORT_80_CHECK" ]; then
-        echo -e "${RED}❌ ERROR: Port 80 masih digunakan!${NC}"
-        echo "Service yang menggunakan port 80:"
-        echo "$PORT_80_CHECK"
-        echo ""
-        echo "Silakan hentikan service tersebut secara manual atau gunakan metode lain."
-        echo "Mencoba menggunakan metode standalone certbot..."
-    else
-        echo -e "${GREEN}✅ Port 80 sudah bebas${NC}"
-    fi
-else
-    echo -e "${GREEN}✅ Port 80 bebas${NC}"
+# Check if nginx is configured for webroot
+cd "$DEPLOY_PATH" || exit 1
+NGINX_CONF_PATH="$DEPLOY_PATH/infrastructure/nginx/$NGINX_CONF"
+NGINX_CONTAINER_NAME="KSM-nginx-dev"
+if [ "$ENVIRONMENT" = "prod" ]; then
+    NGINX_CONTAINER_NAME="KSM-nginx-prod"
 fi
 
-# Step 3: Generate certificate with Certbot (using standalone method)
+# Check if nginx container is running
+NGINX_RUNNING=false
+if docker ps --format "{{.Names}}" | grep -q "^${NGINX_CONTAINER_NAME}$"; then
+    NGINX_RUNNING=true
+    echo -e "${GREEN}✅ Nginx container sedang berjalan${NC}"
+    
+    # Check if nginx config has webroot location
+    if [ -f "$NGINX_CONF_PATH" ] && grep -q "\.well-known/acme-challenge" "$NGINX_CONF_PATH"; then
+        echo -e "${GREEN}✅ Nginx sudah dikonfigurasi untuk webroot method${NC}"
+        USE_WEBROOT=true
+    else
+        echo -e "${YELLOW}⚠️  Nginx belum dikonfigurasi untuk webroot, akan menggunakan standalone method${NC}"
+        USE_WEBROOT=false
+    fi
+else
+    echo -e "${YELLOW}⚠️  Nginx container tidak berjalan, akan menggunakan standalone method${NC}"
+    USE_WEBROOT=false
+fi
+
+# Step 3: Generate certificate with Certbot
 echo ""
-echo -e "${BLUE}🔐 Step 3: Generate SSL certificate dengan Let's Encrypt (standalone method)...${NC}"
+if [ "$USE_WEBROOT" = true ]; then
+    echo -e "${BLUE}🔐 Step 3: Generate SSL certificate dengan Let's Encrypt (webroot method)...${NC}"
+    echo -e "${GREEN}💡 Menggunakan webroot method - tidak perlu stop service di port 80${NC}"
+    
+    # Ensure nginx can serve the webroot
+    docker exec "$NGINX_CONTAINER_NAME" mkdir -p /var/www/certbot 2>/dev/null || true
+    
+    # Use webroot method (nginx must be running and configured)
+    certbot certonly --webroot \
+        --webroot-path="$WEBROOT_PATH" \
+        --email "$EMAIL" \
+        --agree-tos \
+        --no-eff-email \
+        --preferred-challenges http \
+        -d "$DOMAIN" || {
+        echo -e "${YELLOW}⚠️  Webroot method gagal, mencoba standalone method...${NC}"
+        USE_WEBROOT=false
+    }
+fi
 
-# Create certbot directory
-mkdir -p /var/www/certbot
-
-# Use standalone method (doesn't require nginx)
-certbot certonly --standalone \
-    --email "$EMAIL" \
-    --agree-tos \
-    --no-eff-email \
-    --preferred-challenges http \
-    --http-01-port 80 \
-    -d "$DOMAIN" || {
-    echo -e "${RED}❌ ERROR: Gagal generate certificate!${NC}"
+# Fallback to standalone method if webroot failed or not available
+if [ "$USE_WEBROOT" = false ]; then
     echo ""
-    echo "Possible causes:"
-    echo "  1. Domain $DOMAIN belum pointing ke server IP"
-    echo "  2. Port 80 masih digunakan oleh service lain"
-    echo "  3. Firewall memblokir port 80"
-    echo "  4. Let's Encrypt rate limit (jika baru saja mencoba)"
-    echo ""
-    echo "Troubleshooting:"
-    echo "  - Cek DNS: nslookup $DOMAIN atau dig $DOMAIN"
-    echo "  - Cek port 80: lsof -i :80 atau netstat -tulpn | grep :80"
-    echo "  - Cek firewall: ufw status atau iptables -L"
-    echo "  - Test koneksi: curl -I http://$DOMAIN"
-    exit 1
-}
+    echo -e "${BLUE}🔐 Step 3: Generate SSL certificate dengan Let's Encrypt (standalone method)...${NC}"
+    echo -e "${YELLOW}⚠️  Standalone method memerlukan port 80 bebas${NC}"
+    
+    # Check what's using port 80
+    PORT_80_USAGE=$(lsof -i :80 2>/dev/null || netstat -tulpn 2>/dev/null | grep :80 | head -1 || ss -tulpn 2>/dev/null | grep :80 | head -1 || echo "")
+    
+    if [ -n "$PORT_80_USAGE" ]; then
+        echo -e "${YELLOW}⚠️  Port 80 sedang digunakan:${NC}"
+        echo "$PORT_80_USAGE"
+        echo ""
+        echo -e "${YELLOW}💡 Tips: Jika port 80 digunakan project lain, pastikan nginx container KSM berjalan${NC}"
+        echo -e "${YELLOW}   dan sudah dikonfigurasi untuk webroot method agar tidak perlu stop service lain${NC}"
+        echo ""
+        
+        # Try to stop only KSM nginx container (not other services)
+        if docker ps --format "{{.Names}}" | grep -q "^${NGINX_CONTAINER_NAME}$"; then
+            echo "Menghentikan KSM nginx container sementara untuk standalone method..."
+            docker stop "$NGINX_CONTAINER_NAME" 2>/dev/null || true
+            sleep 2
+        fi
+        
+        # Check again
+        PORT_80_CHECK=$(lsof -i :80 2>/dev/null || netstat -tulpn 2>/dev/null | grep :80 | head -1 || ss -tulpn 2>/dev/null | grep :80 | head -1 || echo "")
+        if [ -n "$PORT_80_CHECK" ]; then
+            echo -e "${RED}❌ ERROR: Port 80 masih digunakan oleh service lain!${NC}"
+            echo "Service yang menggunakan port 80:"
+            echo "$PORT_80_CHECK"
+            echo ""
+            echo -e "${YELLOW}💡 Solusi:${NC}"
+            echo "  1. Pastikan nginx container KSM berjalan dan dikonfigurasi untuk webroot"
+            echo "  2. Atau hentikan service lain yang menggunakan port 80 secara manual"
+            echo "  3. Atau gunakan DNS-01 challenge (tidak memerlukan port 80)"
+            exit 1
+        fi
+    fi
+    
+    # Use standalone method
+    certbot certonly --standalone \
+        --email "$EMAIL" \
+        --agree-tos \
+        --no-eff-email \
+        --preferred-challenges http \
+        --http-01-port 80 \
+        -d "$DOMAIN" || {
+        echo -e "${RED}❌ ERROR: Gagal generate certificate!${NC}"
+        echo ""
+        echo "Possible causes:"
+        echo "  1. Domain $DOMAIN belum pointing ke server IP"
+        echo "  2. Port 80 masih digunakan oleh service lain"
+        echo "  3. Firewall memblokir port 80"
+        echo "  4. Let's Encrypt rate limit (jika baru saja mencoba)"
+        echo ""
+        echo "Troubleshooting:"
+        echo "  - Cek DNS: nslookup $DOMAIN atau dig $DOMAIN"
+        echo "  - Cek port 80: lsof -i :80 atau netstat -tulpn | grep :80"
+        echo "  - Cek firewall: ufw status atau iptables -L"
+        echo "  - Test koneksi: curl -I http://$DOMAIN"
+        echo ""
+        echo -e "${YELLOW}💡 Alternatif: Pastikan nginx container KSM berjalan dan gunakan webroot method${NC}"
+        exit 1
+    }
+fi
 
 echo -e "${GREEN}✅ Certificate berhasil di-generate${NC}"
 
@@ -253,14 +294,21 @@ chmod +x "$RENEWAL_SCRIPT"
 
 echo -e "${GREEN}✅ Auto-renewal sudah di-setup${NC}"
 
-# Step 7: Restart nginx container
+# Step 7: Restart nginx container (if was stopped for standalone method)
 echo ""
 echo -e "${BLUE}🚀 Step 7: Restart nginx container...${NC}"
 cd "$DEPLOY_PATH" || exit 1
-docker-compose up -d nginx-dev 2>/dev/null || docker-compose up -d nginx-prod 2>/dev/null || true
 
-# Wait a bit for nginx to start
-sleep 5
+# Check if nginx container is running
+if docker ps --format "{{.Names}}" | grep -q "^${NGINX_CONTAINER_NAME}$"; then
+    echo "Nginx container sudah berjalan, reloading config..."
+    # Reload nginx config to ensure it's using the new certificates
+    docker exec "$NGINX_CONTAINER_NAME" nginx -s reload 2>/dev/null || true
+else
+    echo "Menjalankan nginx container..."
+    docker-compose up -d nginx-dev 2>/dev/null || docker-compose up -d nginx-prod 2>/dev/null || true
+    sleep 5
+fi
 
 # Step 8: Verify SSL
 echo ""
