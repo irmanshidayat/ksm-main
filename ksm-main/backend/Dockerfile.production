@@ -16,8 +16,25 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DB_USER=root \
     DB_PASSWORD=password
 
-# Install system dependencies untuk production
-RUN apt-get update && apt-get install -y \
+# Install system dependencies untuk production dengan retry mechanism
+# Mengatasi masalah DNS resolution dengan retry mechanism (5 attempts dengan exponential backoff)
+RUN set -e; \
+    MAX_ATTEMPTS=5; \
+    for i in $(seq 1 $MAX_ATTEMPTS); do \
+        echo "Attempt $i/$MAX_ATTEMPTS: Updating package lists..."; \
+        if apt-get update; then \
+            echo "✅ Package lists updated successfully"; \
+            break; \
+        else \
+            if [ $i -eq $MAX_ATTEMPTS ]; then \
+                echo "❌ All $MAX_ATTEMPTS attempts failed. Build will fail."; \
+                exit 1; \
+            fi; \
+            echo "⚠️  Attempt $i failed, waiting before retry..."; \
+            sleep $((i * 5)); \
+        fi; \
+    done && \
+    apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     curl \
