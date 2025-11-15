@@ -80,7 +80,7 @@ Tambahkan secrets berikut untuk deployment production:
   
 - **`DEPLOY_PATH_PROD`**: Path deployment di server
   - Default: `/opt/ksm-main-prod`
-  - **Wajib**: Tidak (opsional)
+  - **Wajib**: Tidak (opsional).
 
 #### Validasi Secrets
 

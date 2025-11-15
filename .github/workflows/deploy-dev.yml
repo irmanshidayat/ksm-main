@@ -43,7 +43,7 @@ jobs:
           echo "🔍 Validating required secrets..."
           MISSING_SECRETS=()
           
-          if [ -z "${{ secrets.SSH_HOST_DEVV }}" ]; then
+          if [ -z "${{ secrets.SSH_HOST_DEV }}" ]; then
             MISSING_SECRETS+=("SSH_HOST_DEV")
           fi
           
