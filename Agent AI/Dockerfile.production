@@ -22,12 +22,21 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Install system dependencies untuk production dengan retry mechanism
 # Mengatasi masalah DNS resolution dengan retry mechanism (5 attempts dengan exponential backoff)
 # Menggunakan timeout dan retry yang lebih agresif untuk mengatasi masalah DNS
+# Menambahkan konfigurasi DNS dan apt untuk meningkatkan reliabilitas
 RUN set -e; \
+    echo "nameserver 8.8.8.8" > /etc/resolv.conf.backup && \
+    echo "nameserver 8.8.4.4" >> /etc/resolv.conf.backup && \
+    echo "nameserver 1.1.1.1" >> /etc/resolv.conf.backup && \
+    cat /etc/resolv.conf.backup > /etc/resolv.conf || true; \
     MAX_ATTEMPTS=5; \
-    APT_TIMEOUT=120; \
+    APT_TIMEOUT=180; \
     for i in $(seq 1 $MAX_ATTEMPTS); do \
         echo "Attempt $i/$MAX_ATTEMPTS: Updating package lists (timeout: ${APT_TIMEOUT}s)..."; \
-        if timeout ${APT_TIMEOUT} apt-get update -o Acquire::http::Timeout=${APT_TIMEOUT} -o Acquire::ftp::Timeout=${APT_TIMEOUT}; then \
+        if timeout ${APT_TIMEOUT} apt-get update \
+            -o Acquire::http::Timeout=${APT_TIMEOUT} \
+            -o Acquire::ftp::Timeout=${APT_TIMEOUT} \
+            -o Acquire::https::Timeout=${APT_TIMEOUT} \
+            -o Acquire::Retries=3; then \
             echo "✅ Package lists updated successfully"; \
             break; \
         else \
@@ -36,7 +45,7 @@ RUN set -e; \
                 exit 1; \
             fi; \
             echo "⚠️  Attempt $i failed, waiting before retry..."; \
-            sleep $((i * 5)); \
+            sleep $((i * 10)); \
         fi; \
     done && \
     apt-get install -y --no-install-recommends \
