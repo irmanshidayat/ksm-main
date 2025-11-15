@@ -19,12 +19,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Install system dependencies untuk production dengan retry mechanism
 # Mengatasi masalah DNS resolution dengan retry mechanism (5 attempts dengan exponential backoff)
 # Menggunakan timeout dan retry yang lebih agresif untuk mengatasi masalah DNS
-# Menambahkan konfigurasi DNS dan apt untuk meningkatkan reliabilitas
+# DNS configuration dilakukan di level Docker daemon atau docker-compose build args
 RUN set -e; \
-    echo "nameserver 8.8.8.8" > /etc/resolv.conf.backup && \
-    echo "nameserver 8.8.4.4" >> /etc/resolv.conf.backup && \
-    echo "nameserver 1.1.1.1" >> /etc/resolv.conf.backup && \
-    cat /etc/resolv.conf.backup > /etc/resolv.conf || true; \
     MAX_ATTEMPTS=5; \
     APT_TIMEOUT=180; \
     for i in $(seq 1 $MAX_ATTEMPTS); do \
@@ -33,7 +29,9 @@ RUN set -e; \
             -o Acquire::http::Timeout=${APT_TIMEOUT} \
             -o Acquire::ftp::Timeout=${APT_TIMEOUT} \
             -o Acquire::https::Timeout=${APT_TIMEOUT} \
-            -o Acquire::Retries=3; then \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::No-Cache=True \
+            -o Acquire::http::Pipeline-Depth=0; then \
             echo "✅ Package lists updated successfully"; \
             break; \
         else \

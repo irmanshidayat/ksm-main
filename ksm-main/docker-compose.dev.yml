@@ -97,6 +97,12 @@ services:
     build:
       context: ../Agent AI
       dockerfile: Dockerfile.production
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
     container_name: KSM-agent-ai-dev
     restart: always
     environment:
@@ -138,6 +144,12 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile.production
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
     container_name: KSM-backend-dev
     restart: always
     environment:
