@@ -61,17 +61,21 @@ RUN set -e; \
     coreutils \
     && rm -rf /var/lib/apt/lists/*
 
-# Set Python 3.12 sebagai default python dan pip
+# Set Python 3.12 sebagai default python dan siapkan virtual environment (menghindari PEP 668)
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
-    python3.12 -m pip install --upgrade pip
+    python3.12 -m venv /opt/venv && \
+    /opt/venv/bin/pip install --upgrade pip
+
+# Gunakan virtual environment sebagai default Python & pip
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Copy requirements files
 COPY requirements.txt ./
 
-# Install Python dependencies untuk production
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies untuk production (di dalam virtual environment)
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
