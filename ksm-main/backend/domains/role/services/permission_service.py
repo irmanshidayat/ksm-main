@@ -722,7 +722,7 @@ class PermissionService:
     def get_user_accessible_menus(user_id):
         """Get all menus accessible by user"""
         try:
-            from domains.role.models.role_models import UserRole
+            from domains.role.models.role_models import UserRole, Role
             from models import User
             
             logger.info(f"[get_user_accessible_menus] Starting for user_id: {user_id}")
@@ -734,14 +734,115 @@ class PermissionService:
             has_show_in_sidebar = 'show_in_sidebar' in columns
             logger.info(f"[get_user_accessible_menus] show_in_sidebar column exists: {has_show_in_sidebar}")
             
+            # Get user info
+            user = User.query.get(user_id)
+            if not user:
+                logger.warning(f"[get_user_accessible_menus] User {user_id} not found")
+                return []
+            
             # Get user roles (termasuk admin role jika ada)
             user_roles = UserRole.query.filter_by(user_id=user_id, is_active=True).all()
             role_ids = [ur.role_id for ur in user_roles]
             logger.info(f"[get_user_accessible_menus] User {user_id} has {len(user_roles)} active roles: {role_ids}")
             
+            # Auto-fix: Jika user tidak punya role tapi adalah admin, assign Admin role
             if not role_ids:
-                logger.warning(f"[get_user_accessible_menus] User {user_id} has no active roles, returning empty menu list")
-                return []
+                is_admin = (user.role == 'admin' or user.username == 'admin')
+                if is_admin:
+                    logger.warning(f"[get_user_accessible_menus] Admin user {user_id} has no roles, attempting to fix...")
+                    try:
+                        # Find or create Admin role
+                        admin_role = Role.query.filter_by(code='ADMIN').first()
+                        if not admin_role:
+                            admin_role = Role.query.filter_by(name='Admin').first()
+                        
+                        if admin_role:
+                            # Assign Admin role to user
+                            existing_user_role = UserRole.query.filter_by(
+                                user_id=user_id,
+                                role_id=admin_role.id
+                            ).first()
+                            
+                            if not existing_user_role:
+                                user_role = UserRole(
+                                    user_id=user_id,
+                                    role_id=admin_role.id,
+                                    is_active=True,
+                                    is_primary=True
+                                )
+                                db.session.add(user_role)
+                                db.session.commit()
+                                logger.info(f"[get_user_accessible_menus] Assigned Admin role to user {user_id}")
+                            else:
+                                if not existing_user_role.is_active:
+                                    existing_user_role.is_active = True
+                                    db.session.commit()
+                                    logger.info(f"[get_user_accessible_menus] Activated Admin role for user {user_id}")
+                            
+                            # Ensure Admin role has permission for all menus with show_in_sidebar = True
+                            all_menus = Menu.query.filter_by(is_active=True).all()
+                            permissions_created = 0
+                            permissions_updated = 0
+                            
+                            for menu in all_menus:
+                                menu_permission = MenuPermission.query.filter_by(
+                                    menu_id=menu.id,
+                                    role_id=admin_role.id
+                                ).first()
+                                
+                                if not menu_permission:
+                                    # Create permission with full access
+                                    if has_show_in_sidebar:
+                                        menu_permission = MenuPermission(
+                                            menu_id=menu.id,
+                                            role_id=admin_role.id,
+                                            can_read=True,
+                                            can_create=True,
+                                            can_update=True,
+                                            can_delete=True,
+                                            is_active=True,
+                                            show_in_sidebar=True
+                                        )
+                                    else:
+                                        menu_permission = MenuPermission(
+                                            menu_id=menu.id,
+                                            role_id=admin_role.id,
+                                            can_read=True,
+                                            can_create=True,
+                                            can_update=True,
+                                            can_delete=True,
+                                            is_active=True
+                                        )
+                                    db.session.add(menu_permission)
+                                    permissions_created += 1
+                                else:
+                                    # Update permission to ensure full access and show_in_sidebar = True
+                                    menu_permission.can_read = True
+                                    menu_permission.can_create = True
+                                    menu_permission.can_update = True
+                                    menu_permission.can_delete = True
+                                    menu_permission.is_active = True
+                                    if has_show_in_sidebar:
+                                        menu_permission.show_in_sidebar = True
+                                    permissions_updated += 1
+                            
+                            if permissions_created > 0 or permissions_updated > 0:
+                                db.session.commit()
+                                logger.info(f"[get_user_accessible_menus] Created {permissions_created} and updated {permissions_updated} menu permissions for Admin role")
+                            
+                            # Re-fetch user roles
+                            user_roles = UserRole.query.filter_by(user_id=user_id, is_active=True).all()
+                            role_ids = [ur.role_id for ur in user_roles]
+                            logger.info(f"[get_user_accessible_menus] After fix, user {user_id} has {len(user_roles)} active roles: {role_ids}")
+                        else:
+                            logger.warning(f"[get_user_accessible_menus] Admin role not found, cannot auto-fix")
+                    except Exception as fix_error:
+                        logger.error(f"[get_user_accessible_menus] Error auto-fixing admin role: {fix_error}")
+                        db.session.rollback()
+                
+                if not role_ids:
+                    logger.warning(f"[get_user_accessible_menus] User {user_id} has no active roles, returning empty menu list")
+                    return []
             
             # Semua user (termasuk admin) harus melihat menu berdasarkan role mereka sendiri
             # Admin tidak bypass - mereka juga harus mematuhi show_in_sidebar filter

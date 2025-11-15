@@ -174,7 +174,7 @@ def create_app():
     # Register legacy routes (to be migrated later)
     app.register_blueprint(debug_bp)
     # notification_bp removed - now handled by domains.notification.routes (registered above)
-    app.register_blueprint(compatibility_bp)
+    app.register_blueprint(compatibility_bp, url_prefix='/api')
     # service_routes_bp removed - now handled by domains.monitoring.routes (registered above)
     # circuit_breaker_bp removed - now handled by domains.monitoring.routes (registered above)
     # standalone_ai_bp removed - now handled by domains.knowledge.routes (registered above)
