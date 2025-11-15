@@ -52,7 +52,7 @@ git commit -m "Initial commit"
 git push -u origin main
 ```
 
-### Push ke Branch Dev.
+### Push ke Branch Dev
 
 ```bash
 # Buat atau switch ke dev
