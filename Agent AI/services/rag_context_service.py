@@ -25,13 +25,19 @@ class RAGContextService:
     def initialize(self):
         """Initialize RAG context service"""
         try:
+            # Initialize service - tidak ada external dependencies yang diperlukan
+            # Service ini hanya memproses context yang diterima dari KSM Main
             self.initialized = True
-            logger.info("RAG Context Service initialized successfully")
+            logger.info("✅ RAG Context Service initialized successfully")
+            logger.info(f"   - Max context length: {self.max_context_length}")
+            logger.info(f"   - Min similarity: {self.min_similarity}")
+            logger.info(f"   - Max chunks: {self.max_chunks}")
             
         except Exception as e:
-            logger.error(f"Failed to initialize RAG Context Service: {e}")
+            logger.error(f"❌ Failed to initialize RAG Context Service: {e}")
             self.initialized = False
-            raise
+            # Jangan raise exception, biarkan service tetap berjalan
+            logger.warning("⚠️  RAG Context Service will run in degraded mode")
     
     def _validate_context(self, context: Dict[str, Any]) -> bool:
         """Validate RAG context format"""

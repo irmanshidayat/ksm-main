@@ -85,12 +85,16 @@ services:
     environment:
       - QDRANT__SERVICE__HTTP_PORT=6333
       - QDRANT__SERVICE__GRPC_PORT=6334
+    # Health check untuk Qdrant - menggunakan pendekatan sederhana
+    # Qdrant image tidak memiliki curl/wget, jadi kita gunakan TCP connection check
+    # atau disable health check dan gunakan depends_on dengan service_started
+    # Untuk development, kita lebih toleran dengan health check
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:6333/ || wget --spider -q http://localhost:6333/ || exit 1"]
-      timeout: 10s
-      retries: 20
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/6333 || exit 1"]
+      timeout: 5s
+      retries: 10
       interval: 10s
-      start_period: 120s
+      start_period: 60s
 
   # Agent AI Service untuk Development
   agent-ai-dev:
@@ -182,7 +186,7 @@ services:
       redis-dev:
         condition: service_healthy
       qdrant-dev:
-        condition: service_healthy
+        condition: service_started  # Untuk development, gunakan service_started karena health check Qdrant mungkin bermasalah
       agent-ai-dev:
         condition: service_started
     networks:
