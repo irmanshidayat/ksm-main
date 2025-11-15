@@ -9,7 +9,7 @@ Dokumen ini menjelaskan berbagai solusi alternatif untuk mengoptimalkan proses b
 3. **Build terlalu lama** - `--no-cache` membuat build sangat lambat
 4. **Resource constraints** - Server tidak memiliki cukup resource
 
-## ✅ Solusi Alternatif
+## ✅ Solusi Alternatif 
 
 ### Solusi 1: Build dengan Cache (Paling Cepat)
 
