@@ -221,10 +221,29 @@ jobs:
             set -e
             cd $DEPLOY_PATH
             
+            # Function to check if port is in use by Docker
+            check_docker_port() {
+              local PORT=\$1
+              # Check if any Docker container is using this port
+              docker ps --format "{{.ID}} {{.Ports}}" | grep -q ":\$PORT->" && return 0 || return 1
+            }
+            
             # Function to kill process using a port
             kill_port() {
               local PORT=\$1
+              local FORCE=\${2:-false}
               echo "🔍 Checking port \$PORT..."
+              
+              # First check if Docker container is using the port
+              if check_docker_port \$PORT; then
+                echo "⚠️  Port \$PORT is in use by Docker container..."
+                CONTAINER_ID=\$(docker ps --format "{{.ID}} {{.Ports}}" | grep ":\$PORT->" | awk '{print \$1}' | head -1)
+                if [ -n "\$CONTAINER_ID" ]; then
+                  echo "🗑️  Removing container \$CONTAINER_ID..."
+                  docker rm -f \$CONTAINER_ID 2>/dev/null || true
+                  sleep 3
+                fi
+              fi
               
               # Find process using the port (try multiple methods)
               local PID=""
@@ -255,14 +274,24 @@ jobs:
                 sleep 2
                 
                 # Verify port is freed
-                if lsof -ti:\$PORT >/dev/null 2>&1 || ss -tlnp | grep -q ":\$PORT "; then
+                if lsof -ti:\$PORT >/dev/null 2>&1 || (command -v ss >/dev/null 2>&1 && ss -tlnp | grep -q ":\$PORT "); then
                   echo "⚠️  Port \$PORT still in use, trying harder..."
                   pkill -9 -f ":\$PORT" || true
                   sleep 2
                 fi
                 echo "✅ Port \$PORT freed"
               else
-                echo "✅ Port \$PORT is free"
+                # Double check with Docker
+                if check_docker_port \$PORT; then
+                  echo "⚠️  Port \$PORT still in use by Docker, removing container..."
+                  CONTAINER_ID=\$(docker ps --format "{{.ID}} {{.Ports}}" | grep ":\$PORT->" | awk '{print \$1}' | head -1)
+                  if [ -n "\$CONTAINER_ID" ]; then
+                    docker rm -f \$CONTAINER_ID 2>/dev/null || true
+                    sleep 2
+                  fi
+                else
+                  echo "✅ Port \$PORT is free"
+                fi
               fi
             }
             
@@ -274,14 +303,48 @@ jobs:
               echo "🛑 Stopping existing containers..."
               docker-compose -f docker-compose.yml down --remove-orphans || true
               
+              # Wait for containers to fully stop
+              sleep 5
+              
               # Remove any dangling containers with KSM prefix
+              echo "🗑️  Removing dangling containers..."
               docker ps -a --filter "name=KSM-" --format "{{.ID}}" | xargs -r docker rm -f 2>/dev/null || true
               
+              # Force remove any containers using required ports
+              for PORT in 8002 3310 6381 6333 6334 5002 3006 8084 8444 9092 3007 8085; do
+                CONTAINER_ID=\$(docker ps --format "{{.ID}} {{.Ports}}" | grep ":\$PORT->" | awk '{print \$1}' | head -1)
+                if [ -n "\$CONTAINER_ID" ]; then
+                  echo "⚠️  Found container \$CONTAINER_ID using port \$PORT, removing..."
+                  docker rm -f \$CONTAINER_ID 2>/dev/null || true
+                fi
+              done
+              
               # Remove any dangling networks
+              echo "🗑️  Removing dangling networks..."
               docker network ls --filter "name=KSM-dev" --format "{{.ID}}" | xargs -r docker network rm 2>/dev/null || true
               
               # Prune unused networks
+              echo "🧹 Pruning unused networks..."
               docker network prune -f || true
+              
+              # Cleanup iptables rules that might be holding ports
+              # Note: This requires root/sudo, so we'll try but not fail if it doesn't work
+              echo "🧹 Cleaning up iptables rules (if accessible)..."
+              if command -v iptables >/dev/null 2>&1 && [ "\$(id -u)" = "0" ]; then
+                # Remove Docker iptables rules for our ports (requires root)
+                for PORT in 8002 3310 6381 6333 6334 5002 3006 8084 8444 9092 3007 8085; do
+                  # Try to find and remove NAT rules
+                  iptables -t nat -S DOCKER 2>/dev/null | grep "dport \$PORT" | sed 's/-A/-D/' | xargs -r iptables -t nat 2>/dev/null || true
+                  # Try to find and remove filter rules
+                  iptables -t filter -S DOCKER 2>/dev/null | grep "dport \$PORT" | sed 's/-A/-D/' | xargs -r iptables -t filter 2>/dev/null || true
+                done
+              else
+                echo "⚠️  Skipping iptables cleanup (requires root privileges)"
+              fi
+              
+              # Wait for Docker daemon to release ports
+              echo "⏳ Waiting for Docker daemon to release ports..."
+              sleep 10
               
               echo "✅ Docker cleanup completed"
             }
@@ -305,16 +368,34 @@ jobs:
             kill_port 8085  # Adminer
             
             # Wait a bit for ports to be fully released
-            sleep 3
+            echo "⏳ Waiting for ports to be fully released..."
+            sleep 10
             
             # Verify ports are free
             echo "🔍 Verifying ports are free..."
             for PORT in 8002 3310 6381 6333 6334 5002 3006 8084 8444 9092 3007 8085; do
+              # Check Docker containers first
+              if check_docker_port \$PORT; then
+                echo "⚠️  Warning: Port \$PORT is still in use by Docker container, attempting to free..."
+                CONTAINER_ID=\$(docker ps --format "{{.ID}} {{.Ports}}" | grep ":\$PORT->" | awk '{print \$1}' | head -1)
+                if [ -n "\$CONTAINER_ID" ]; then
+                  echo "🗑️  Force removing container \$CONTAINER_ID..."
+                  docker rm -f \$CONTAINER_ID 2>/dev/null || true
+                  sleep 3
+                fi
+              fi
+              
+              # Check system processes
               if lsof -ti:\$PORT >/dev/null 2>&1 || (command -v ss >/dev/null 2>&1 && ss -tlnp | grep -q ":\$PORT "); then
-                echo "⚠️  Warning: Port \$PORT is still in use, attempting to free..."
-                kill_port \$PORT
+                echo "⚠️  Warning: Port \$PORT is still in use by system process, attempting to free..."
+                kill_port \$PORT true
+                sleep 3
               fi
             done
+            
+            # Final wait for Docker daemon
+            echo "⏳ Final wait for Docker daemon to release all ports..."
+            sleep 10
             
             # Check if .env file exists
             if [ ! -f .env ]; then
@@ -379,6 +460,22 @@ jobs:
             
             # Start services with retry logic
             echo "🚀 Starting services..."
+            
+            # Final check before starting - ensure no containers are using our ports
+            echo "🔍 Final pre-start port check..."
+            for PORT in 8002 3310 6381 6333 6334 5002 3006 8084 8444 9092 3007 8085; do
+              if check_docker_port \$PORT; then
+                echo "⚠️  Port \$PORT is still in use by Docker container before start, removing..."
+                CONTAINER_ID=\$(docker ps --format "{{.ID}} {{.Ports}}" | grep ":\$PORT->" | awk '{print \$1}' | head -1)
+                if [ -n "\$CONTAINER_ID" ]; then
+                  echo "🗑️  Force removing container \$CONTAINER_ID..."
+                  docker rm -f \$CONTAINER_ID 2>/dev/null || true
+                  sleep 2
+                fi
+              fi
+            done
+            sleep 5
+            
             MAX_START_RETRIES=3
             START_RETRY=0
             START_SUCCESS=false
@@ -400,12 +497,18 @@ jobs:
                   fi
                   if [ -n "\$CONFLICT_PORT" ]; then
                     echo "🔍 Freeing port \$CONFLICT_PORT..."
-                    kill_port \$CONFLICT_PORT
+                    kill_port \$CONFLICT_PORT true
                   fi
                   
                   # Cleanup and retry
                   cleanup_docker
-                  sleep 5
+                  
+                  # Additional aggressive cleanup for the conflicting port
+                  if [ -n "\$CONFLICT_PORT" ]; then
+                    echo "🔍 Performing aggressive cleanup for port \$CONFLICT_PORT..."
+                    kill_port \$CONFLICT_PORT true
+                  fi
+                  sleep 10
                   
                   if [ \$START_RETRY -lt \$MAX_START_RETRIES ]; then
                     continue
@@ -423,16 +526,30 @@ jobs:
                   echo "⚠️  Port conflict detected. Attempting to resolve..."
                   
                   # Extract all conflicting ports (format: "Bind for 0.0.0.0:8002 failed: port is already allocated")
-                  grep -oE "Bind for [0-9.]+:([0-9]+)" /tmp/start.log | grep -oE "[0-9]+" | sort -u | while read PORT; do
-                    if [ -n "\$PORT" ]; then
-                      echo "🔍 Freeing port \$PORT..."
-                      kill_port \$PORT
-                    fi
-                  done
+                  CONFLICT_PORTS=\$(grep -oE "Bind for [0-9.]+:([0-9]+)" /tmp/start.log | grep -oE "[0-9]+" | sort -u || echo "")
+                  if [ -n "\$CONFLICT_PORTS" ]; then
+                    echo "🔍 Freeing conflicting ports..."
+                    echo "\$CONFLICT_PORTS" | while read PORT; do
+                      if [ -n "\$PORT" ]; then
+                        echo "  🔍 Freeing port \$PORT..."
+                        kill_port \$PORT true
+                      fi
+                    done
+                  fi
                   
                   # Cleanup and retry
                   cleanup_docker
-                  sleep 5
+                  
+                  # Additional aggressive cleanup for all ports
+                  echo "🔍 Performing aggressive cleanup for all conflicting ports..."
+                  if [ -n "\$CONFLICT_PORTS" ]; then
+                    echo "\$CONFLICT_PORTS" | while read PORT; do
+                      if [ -n "\$PORT" ]; then
+                        kill_port \$PORT true
+                      fi
+                    done
+                  fi
+                  sleep 10
                   
                   if [ \$START_RETRY -lt \$MAX_START_RETRIES ]; then
                     continue
