@@ -1,7 +1,5 @@
 -- Migration untuk menambahkan kolom vendor_id dan kolom Gmail OAuth ke tabel users
--- Script ini aman untuk dijalankan berulang kali (idempotent)
-
-USE KSM_main;
+-- Script ini aman untuk dijalankan berulang kali (idempotent) dan mengikuti database aktif
 
 -- Tambahkan kolom vendor_id jika belum ada
 SET @dbname = DATABASE();
