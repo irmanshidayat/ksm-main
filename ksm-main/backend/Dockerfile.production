@@ -1,5 +1,6 @@
 # KSM Main Backend Production Dockerfile
-FROM python:3.12-slim
+# Menggunakan Ubuntu 24.04 LTS sebagai base image
+FROM ubuntu:24.04
 
 # Set working directory
 WORKDIR /app
@@ -14,7 +15,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DB_PORT=3306 \
     DB_NAME=KSM_main \
     DB_USER=root \
-    DB_PASSWORD=password
+    DB_PASSWORD=password \
+    DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies untuk production dengan retry mechanism
 # Mengatasi masalah DNS resolution dengan retry mechanism (5 attempts dengan exponential backoff)
@@ -44,12 +46,22 @@ RUN set -e; \
         fi; \
     done && \
     apt-get install -y --no-install-recommends \
+    python3.12 \
+    python3.12-dev \
+    python3.12-venv \
+    python3-pip \
     gcc \
     g++ \
     curl \
     default-libmysqlclient-dev \
     pkg-config \
+    coreutils \
     && rm -rf /var/lib/apt/lists/*
+
+# Set Python 3.12 sebagai default python dan pip
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
+    python3.12 -m pip install --upgrade pip
 
 # Copy requirements files
 COPY requirements.txt ./
