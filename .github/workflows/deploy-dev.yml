@@ -238,11 +238,53 @@ jobs:
             
             # Build and start services
             echo "🔨 Building Docker images..."
-            docker-compose -f docker-compose.yml build --no-cache || {
-              echo "❌ Build failed! Showing logs..."
-              docker-compose -f docker-compose.yml logs --tail=50
+            
+            # Solusi 1: Build dengan cache (lebih cepat) - uncomment untuk menggunakan
+            # docker-compose -f docker-compose.yml build || {
+            #   echo "❌ Build failed! Showing logs..."
+            #   docker-compose -f docker-compose.yml logs --tail=50
+            #   exit 1
+            # }
+            
+            # Solusi 2: Build dengan retry dan timeout yang lebih baik
+            MAX_BUILD_RETRIES=3
+            BUILD_RETRY=0
+            BUILD_SUCCESS=false
+            
+            while [ \$BUILD_RETRY -lt \$MAX_BUILD_RETRIES ] && [ "\$BUILD_SUCCESS" = "false" ]; do
+              BUILD_RETRY=\$((BUILD_RETRY + 1))
+              echo "🔄 Build attempt \$BUILD_RETRY/\$MAX_BUILD_RETRIES..."
+              
+              # Build dengan timeout per service untuk menghindari hang
+              if DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 \
+                 timeout 1800 docker-compose -f docker-compose.yml build --parallel --progress=plain 2>&1 | tee /tmp/build.log; then
+                BUILD_SUCCESS=true
+                echo "✅ Build successful!"
+              else
+                BUILD_EXIT_CODE=\${PIPESTATUS[0]}
+                if [ \$BUILD_EXIT_CODE -eq 124 ]; then
+                  echo "⏱️  Build timeout (30 minutes). Retrying..."
+                else
+                  echo "❌ Build failed with exit code \$BUILD_EXIT_CODE"
+                  echo "📋 Last 50 lines of build log:"
+                  tail -50 /tmp/build.log || true
+                  
+                  if [ \$BUILD_RETRY -lt \$MAX_BUILD_RETRIES ]; then
+                    echo "🔄 Retrying in 10 seconds..."
+                    sleep 10
+                  else
+                    echo "❌ All build attempts failed!"
+                    docker-compose -f docker-compose.yml logs --tail=50 || true
+                    exit 1
+                  fi
+                fi
+              fi
+            done
+            
+            if [ "\$BUILD_SUCCESS" = "false" ]; then
+              echo "❌ Build failed after \$MAX_BUILD_RETRIES attempts!"
               exit 1
-            }
+            fi
             
             # Start services
             echo "🚀 Starting services..."
