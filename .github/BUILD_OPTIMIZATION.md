@@ -4,7 +4,7 @@ Dokumen ini menjelaskan berbagai solusi alternatif untuk mengoptimalkan proses b
 
 ## 📋 Masalah yang Sering Terjadi
 
-1. **Build timeout** - apt-get update sangat lambat
+1. **Build timeout** - apt-get update sangat lambat.
 2. **Network issues** - Koneksi ke Docker registry lambat
 3. **Build terlalu lama** - `--no-cache` membuat build sangat lambat
 4. **Resource constraints** - Server tidak memiliki cukup resource
