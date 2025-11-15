@@ -85,6 +85,9 @@ instance/
 .env.test.local
 .env.production.local
 .env.*.local
+.env.dev
+.env.production
+.env.staging
 
 # Environment example files (tidak di-upload ke GitHub)
 env.example

@@ -15,7 +15,7 @@ backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
 
 from config.database import db, init_database
-from models.knowledge_base import User, EmailLog
+from models import User, EmailLog
 from flask import Flask
 
 # Setup logging

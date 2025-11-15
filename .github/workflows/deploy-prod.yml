@@ -1,0 +1,355 @@
+# =============================================================================
+# GitHub Actions - Deployment Production
+# =============================================================================
+# 
+# Workflow untuk deployment otomatis ke production server
+# Trigger: Push ke branch 'main' atau manual dispatch
+# 
+# Requirements:
+# - GitHub Secrets:
+#   - SSH_HOST_PROD: IP/hostname server production
+#   - SSH_USER_PROD: Username SSH untuk production
+#   - SSH_KEY_PROD: Private SSH key untuk production
+#   - DEPLOY_PATH_PROD: Path di server (default: /opt/ksm-main-prod)
+# 
+# Note: VPS menggunakan port SSH 22 (port default)
+# =============================================================================
+
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Manual trigger untuk production
+
+env:
+  COMPOSE_FILE: docker-compose.yml
+  DEPLOY_ENV: production
+
+jobs:
+  deploy:
+    name: Deploy to Production Server
+    runs-on: ubuntu-latest
+    environment: production # Requires manual approval if configured
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate required secrets
+        run: |
+          echo "🔍 Validating required secrets..."
+          MISSING_SECRETS=()
+          
+          if [ -z "${{ secrets.SSH_HOST_PROD }}" ]; then
+            MISSING_SECRETS+=("SSH_HOST_PROD")
+          fi
+          
+          if [ -z "${{ secrets.SSH_USER_PROD }}" ]; then
+            MISSING_SECRETS+=("SSH_USER_PROD")
+          fi
+          
+          if [ -z "${{ secrets.SSH_KEY_PROD }}" ]; then
+            MISSING_SECRETS+=("SSH_KEY_PROD")
+          fi
+          
+          if [ ${#MISSING_SECRETS[@]} -gt 0 ]; then
+            echo ""
+            echo "❌ ERROR: Required secrets are not set!"
+            echo ""
+            echo "Missing secrets:"
+            for secret in "${MISSING_SECRETS[@]}"; do
+              echo "  - $secret"
+            done
+            echo ""
+            echo "📝 To fix this, please add the following secrets in GitHub:"
+            echo "   1. Go to: Repository → Settings → Secrets and variables → Actions"
+            echo "   2. Click 'New repository secret'"
+            echo "   3. Add each secret:"
+            echo ""
+            echo "   Required secrets for Production:"
+            echo "   - SSH_HOST_PROD: IP atau hostname server (contoh: 72.61.142.109)"
+            echo "   - SSH_USER_PROD: Username SSH (contoh: root)"
+            echo "   - SSH_KEY_PROD: Private SSH key (full key dengan header/footer)"
+            echo "   - DEPLOY_PATH_PROD: (Optional) Path deployment (default: /opt/ksm-main-prod)"
+            echo ""
+            echo "   Example SSH_KEY_PROD format:"
+            echo "   -----BEGIN OPENSSH PRIVATE KEY-----"
+            echo "   ..."
+            echo "   -----END OPENSSH PRIVATE KEY-----"
+            echo ""
+            exit 1
+          fi
+          
+          echo "✅ All required secrets are set!"
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY_PROD }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H -p 22 ${{ secrets.SSH_HOST_PROD }} >> ~/.ssh/known_hosts 2>&1 || {
+            echo "⚠️  Warning: ssh-keyscan failed, but continuing..."
+            echo "This might be due to network issues or server unreachable."
+          }
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Test SSH connection
+        run: |
+          echo "🔐 Testing SSH connection..."
+          ssh -p 22 -o ConnectTimeout=10 -o StrictHostKeyChecking=no -o BatchMode=yes \
+            ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} \
+            "echo 'SSH connection successful'" || {
+            echo ""
+            echo "❌ ERROR: SSH connection failed!"
+            echo ""
+            echo "Possible causes:"
+            echo "  1. SSH public key belum ditambahkan ke server's authorized_keys"
+            echo "  2. Format SSH private key di GitHub Secrets salah"
+            echo "  3. SSH key tidak match dengan public key di server"
+            echo "  4. Server SSH configuration tidak mengizinkan key authentication"
+            echo ""
+            echo "📝 To fix this:"
+            echo ""
+            echo "Step 1: Generate SSH key (jika belum ada):"
+            echo "  ssh-keygen -t ed25519 -C 'github-actions-deploy' -f ~/.ssh/github_actions_deploy"
+            echo ""
+            echo "Step 2: Copy public key ke server:"
+            echo "  ssh-copy-id -i ~/.ssh/github_actions_deploy.pub -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }}"
+            echo ""
+            echo "  Atau manual:"
+            echo "  cat ~/.ssh/github_actions_deploy.pub | ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} \\"
+            echo "    'mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'"
+            echo ""
+            echo "Step 3: Test connection manually:"
+            echo "  ssh -p 22 -i ~/.ssh/github_actions_deploy ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }}"
+            echo ""
+            echo "Step 4: Copy private key ke GitHub Secrets (SSH_KEY_PROD):"
+            echo "  cat ~/.ssh/github_actions_deploy"
+            echo ""
+            echo "  Pastikan format lengkap dengan header dan footer:"
+            echo "  -----BEGIN OPENSSH PRIVATE KEY-----"
+            echo "  ..."
+            echo "  -----END OPENSSH PRIVATE KEY-----"
+            echo ""
+            echo "Step 5: Verify server SSH config (di server):"
+            echo "  sudo nano /etc/ssh/sshd_config"
+            echo "  Pastikan:"
+            echo "    - PubkeyAuthentication yes"
+            echo "    - AuthorizedKeysFile .ssh/authorized_keys"
+            echo "  Lalu restart: sudo systemctl restart sshd"
+            echo ""
+            exit 1
+          }
+          echo "✅ SSH connection successful!"
+
+      - name: Create deployment directory
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_PROD || '/opt/ksm-main-prod' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} \
+            "mkdir -p $DEPLOY_PATH"
+
+      - name: Copy docker-compose file
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_PROD || '/opt/ksm-main-prod' }}
+        run: |
+          scp -P 22 ksm-main/docker-compose.yml \
+            ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }}:$DEPLOY_PATH/docker-compose.yml
+
+      - name: Copy infrastructure files
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_PROD || '/opt/ksm-main-prod' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} \
+            "mkdir -p $DEPLOY_PATH/infrastructure"
+          
+          scp -P 22 -r ksm-main/infrastructure/* \
+            ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }}:$DEPLOY_PATH/infrastructure/
+
+      - name: Copy backend files
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_PROD || '/opt/ksm-main-prod' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} \
+            "mkdir -p $DEPLOY_PATH/backend"
+          
+          rsync -avz -e "ssh -p 22" --exclude='__pycache__' --exclude='*.pyc' --exclude='.venv' --exclude='ksm_venv' \
+            ksm-main/backend/ \
+            ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }}:$DEPLOY_PATH/backend/
+
+      - name: Copy frontend-vite files
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_PROD || '/opt/ksm-main-prod' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} \
+            "mkdir -p $DEPLOY_PATH/frontend-vite"
+          
+          rsync -avz -e "ssh -p 22" --exclude='node_modules' --exclude='dist' --exclude='.next' \
+            ksm-main/frontend-vite/ \
+            ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }}:$DEPLOY_PATH/frontend-vite/
+
+      - name: Copy Agent AI files
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_PROD || '/opt/ksm-main-prod' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} \
+            "mkdir -p $DEPLOY_PATH/../Agent AI"
+          
+          rsync -avz -e "ssh -p 22" --exclude='__pycache__' --exclude='*.pyc' --exclude='.venv' --exclude='agent_venv' \
+            "Agent AI/" \
+            ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }}:$DEPLOY_PATH/../Agent\ AI/
+
+      - name: Create logs directory
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_PROD || '/opt/ksm-main-prod' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} \
+            "mkdir -p $DEPLOY_PATH/logs/{mysql,nginx,redis}"
+
+      - name: Deploy with Docker Compose
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_PROD || '/opt/ksm-main-prod' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} << EOF
+            set -e
+            cd $DEPLOY_PATH
+            
+            # Stop existing containers
+            echo "🛑 Stopping existing containers..."
+            if [ -f docker-compose.yml ]; then
+              docker-compose -f docker-compose.yml down || true
+            fi
+            
+            # Check if .env file exists
+            if [ ! -f .env ]; then
+              echo "⚠️  Warning: .env file not found. Creating from example..."
+              if [ -f env.example ]; then
+                cp env.example .env
+                echo "✅ Created .env from env.example"
+              else
+                echo "⚠️  env.example not found. Services may fail without proper configuration."
+              fi
+            fi
+            
+            # Build and start services
+            echo "🔨 Building Docker images..."
+            docker-compose -f docker-compose.yml build --no-cache || {
+              echo "❌ Build failed! Showing logs..."
+              docker-compose -f docker-compose.yml logs --tail=50
+              exit 1
+            }
+            
+            # Start services
+            echo "🚀 Starting services..."
+            docker-compose -f docker-compose.yml up -d || {
+              echo "❌ Failed to start services! Showing logs..."
+              docker-compose -f docker-compose.yml logs --tail=50
+              exit 1
+            }
+            
+            # Wait for services to be healthy
+            echo "⏳ Waiting for services to start (60 seconds)..."
+            sleep 60
+            
+            # Check service status
+            echo "📊 Service status:"
+            docker-compose -f docker-compose.yml ps
+            
+            # Show any failed containers
+            FAILED_CONTAINERS=\$(docker-compose -f docker-compose.yml ps | grep -E "(Exit|Restarting|unhealthy)" || true)
+            if [ -n "\$FAILED_CONTAINERS" ]; then
+              echo "⚠️  Some containers have issues:"
+              echo "\$FAILED_CONTAINERS"
+              echo ""
+              echo "📋 Showing logs for failed containers:"
+              docker-compose -f docker-compose.yml logs --tail=100
+            fi
+          EOF
+
+      - name: Verify deployment
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH_PROD || '/opt/ksm-main-prod' }}
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} << EOF
+            cd $DEPLOY_PATH
+            
+            # Get container status
+            CONTAINER_STATUS=\$(docker-compose -f docker-compose.yml ps)
+            echo "📊 Current container status:"
+            echo "\$CONTAINER_STATUS"
+            echo ""
+            
+            # Count running containers
+            RUNNING_COUNT=\$(echo "\$CONTAINER_STATUS" | grep -c "Up" || echo "0")
+            TOTAL_COUNT=\$(echo "\$CONTAINER_STATUS" | grep -v "NAME" | grep -v "^--" | wc -l || echo "0")
+            
+            echo "Running containers: \$RUNNING_COUNT / \$TOTAL_COUNT"
+            echo ""
+            
+            # Check if containers are running
+            if [ "\$RUNNING_COUNT" -gt 0 ]; then
+              echo "✅ Deployment successful! \$RUNNING_COUNT service(s) are running."
+              echo ""
+              echo "📋 Service details:"
+              docker-compose -f docker-compose.yml ps
+              
+              # Test health endpoints
+              echo ""
+              echo "🏥 Testing health endpoints..."
+              curl -f http://localhost:8001/api/health || echo "⚠️  Backend health check failed"
+              curl -f http://localhost:5001/health || echo "⚠️  Agent AI health check failed"
+              curl -f http://localhost:3005 || echo "⚠️  Frontend health check failed"
+              
+              # Show any non-running containers
+              NON_RUNNING=\$(echo "\$CONTAINER_STATUS" | grep -v "Up" | grep -v "NAME" | grep -v "^--" || true)
+              if [ -n "\$NON_RUNNING" ]; then
+                echo ""
+                echo "⚠️  Some services are not running:"
+                echo "\$NON_RUNNING"
+                echo ""
+                echo "📋 Logs for non-running services:"
+                docker-compose -f docker-compose.yml logs --tail=50
+              fi
+            else
+              echo "❌ Deployment failed! No services are running."
+              echo ""
+              echo "📋 All container status:"
+              docker-compose -f docker-compose.yml ps
+              echo ""
+              echo "📋 Recent logs:"
+              docker-compose -f docker-compose.yml logs --tail=100
+              echo ""
+              echo "🔍 Checking for common issues:"
+              echo "  - .env file: \$([ -f .env ] && echo '✅ exists' || echo '❌ missing')"
+              echo "  - Docker compose file: \$([ -f docker-compose.yml ] && echo '✅ exists' || echo '❌ missing')"
+              echo "  - Disk space:"
+              df -h | head -2
+              exit 1
+            fi
+          EOF
+
+      - name: Cleanup old images
+        if: success()
+        run: |
+          ssh -p 22 ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} << EOF
+            # Remove dangling images
+            docker image prune -f
+            
+            # Remove unused images (older than 7 days)
+            docker image prune -a -f --filter "until=168h" || true
+          EOF
+
+      - name: Notification on failure
+        if: failure()
+        run: |
+          echo "❌ Production deployment failed!"
+          echo "Please check the logs and verify the deployment manually."
+

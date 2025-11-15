@@ -13,9 +13,9 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config.database import db
-from models.menu_models import Menu, MenuPermission, PermissionAuditLog
-from models.role_management import Role
-from utils.logger import get_logger
+from domains.role.models.menu_models import Menu, MenuPermission, PermissionAuditLog
+from models import Role
+from shared.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

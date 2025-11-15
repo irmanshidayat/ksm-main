@@ -11,8 +11,8 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import app, db
-from controllers.telegram_controller import TelegramController
-from services.remind_exp_docs_service import RemindExpDocsService
+from domains.notification.controllers.telegram_controller import TelegramController
+from domains.task.services.remind_exp_docs_service import RemindExpDocsService
 from datetime import datetime, date
 import argparse
 

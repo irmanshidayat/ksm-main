@@ -42,7 +42,12 @@ const Sidebar: React.FC = () => {
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
   
   // Fetch menus from API dengan auto-refresh setelah update
-  const { data: menusFromAPI, isLoading: isLoadingMenus } = useGetUserMenusQuery(undefined, {
+  const { 
+    data: menusFromAPI, 
+    isLoading: isLoadingMenus, 
+    error: menusError,
+    isError: isMenusError 
+  } = useGetUserMenusQuery(undefined, {
     // Refetch saat window focus untuk update real-time setelah update sidebar visibility
     refetchOnFocus: true,
     // Refetch saat reconnect
@@ -67,18 +72,38 @@ const Sidebar: React.FC = () => {
   // Menu dinamis dari database - 100% dari API, tidak ada fallback hardcoded
   const navigation: NavigationItem[] = useMemo(() => {
     try {
+      // Log untuk debugging
+      if (menusFromAPI !== undefined) {
+        console.log('[Sidebar] Menus from API:', {
+          count: menusFromAPI?.length || 0,
+          data: menusFromAPI,
+          user: user?.username || 'Unknown',
+          userId: user?.id || 'Unknown'
+        });
+      }
+
       // Jika API return data, gunakan data dari API
       if (menusFromAPI && menusFromAPI.length > 0) {
-        return menusFromAPI.map(convertMenuToNavigationItem);
+        const convertedMenus = menusFromAPI.map(convertMenuToNavigationItem);
+        console.log('[Sidebar] Converted menus:', convertedMenus);
+        return convertedMenus;
       }
       
       // Jika tidak ada data dari API, return empty array (tidak ada fallback hardcoded)
+      if (menusFromAPI !== undefined && menusFromAPI.length === 0) {
+        console.warn('[Sidebar] No menus available for user:', {
+          userId: user?.id,
+          username: user?.username,
+          role: user?.role
+        });
+      }
+      
       return [];
     } catch (error) {
-      console.error('Error processing menus from API:', error);
+      console.error('[Sidebar] Error processing menus from API:', error);
       return [];
     }
-  }, [menusFromAPI]);
+  }, [menusFromAPI, user]);
 
   // Auto-expand submenu yang memiliki halaman aktif
   useEffect(() => {
@@ -227,9 +252,36 @@ const Sidebar: React.FC = () => {
           <ul className="space-y-1">
             {isLoadingMenus ? (
               <li className="text-sm text-gray-500 p-4 text-center">Memuat menu...</li>
+            ) : isMenusError ? (
+              <li className="text-sm text-red-600 p-4 text-center">
+                <div className="space-y-2">
+                  <p className="font-medium">Gagal memuat menu</p>
+                  <p className="text-xs text-gray-500">
+                    {menusError && 'data' in menusError 
+                      ? (menusError.data as any)?.error || 'Terjadi kesalahan saat mengambil menu'
+                      : 'Terjadi kesalahan saat mengambil menu'}
+                  </p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="text-xs text-primary-600 hover:text-primary-700 underline mt-2"
+                  >
+                    Coba muat ulang
+                  </button>
+                </div>
+              </li>
             ) : navigation.length === 0 ? (
               <li className="text-sm text-gray-500 p-4 text-center">
-                Tidak ada menu tersedia. Silakan hubungi administrator untuk mendapatkan akses menu.
+                <div className="space-y-2">
+                  <p>Tidak ada menu tersedia.</p>
+                  <p className="text-xs">
+                    Silakan hubungi administrator untuk mendapatkan akses menu.
+                  </p>
+                  {user && (
+                    <p className="text-xs text-gray-400 mt-2">
+                      User: {user.username} | Role: {user.role || 'Tidak ada role'}
+                    </p>
+                  )}
+                </div>
               </li>
             ) : (
               navigation.map((item) => {

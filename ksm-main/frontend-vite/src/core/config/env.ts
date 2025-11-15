@@ -7,22 +7,27 @@
 // Default API URL untuk development lokal (XAMPP)
 // Untuk production, set VITE_APP_API_URL di .env atau saat build
 const getDefaultApiUrl = () => {
-  // Jika VITE_APP_API_URL sudah di-set, gunakan itu
-  if (import.meta.env.VITE_APP_API_URL) {
-    return import.meta.env.VITE_APP_API_URL;
+  // Jika VITE_APP_API_URL sudah di-set dan tidak kosong, gunakan itu
+  const envApiUrl = import.meta.env.VITE_APP_API_URL;
+  if (envApiUrl && envApiUrl.trim() !== '') {
+    return envApiUrl;
   }
   
-  // Jika NODE_ENV adalah production, kemungkinan di Docker, gunakan port 8001
-  if (import.meta.env.PROD) {
-    return 'http://localhost:8001'; // Backend Docker port
+  // Jika di browser (baik development maupun production), dan VITE_APP_API_URL kosong,
+  // gunakan URL relatif karena nginx sudah reverse proxy
+  // Browser akan otomatis menggunakan domain yang sama (https://devreport.ptkiansantang.com)
+  if (typeof window !== 'undefined') {
+    // Gunakan URL relatif untuk browser
+    // Nginx akan reverse proxy /api/ ke backend
+    return window.location.origin;
   }
   
-  // Jika development dan tidak ada VITE_APP_API_URL, gunakan localhost
-  if (import.meta.env.DEV && !import.meta.env.VITE_APP_API_URL) {
+  // Jika tidak di browser (SSR atau build time), gunakan default berdasarkan environment
+  if (import.meta.env.DEV) {
     return 'http://localhost:8000'; // Backend default port untuk development
   }
   
-  // Fallback ke localhost:8000 jika tidak ada konfigurasi
+  // Fallback untuk production build time
   return 'http://localhost:8000';
 };
 
