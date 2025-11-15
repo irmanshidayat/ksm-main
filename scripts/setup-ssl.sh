@@ -22,10 +22,12 @@ EMAIL=${2:-""}
 
 if [ "$ENVIRONMENT" = "dev" ]; then
     DOMAIN="devreport.ptkiansantang.com"
+    DOMAINS="devreport.ptkiansantang.com devjargas.ptkiansantang.com"
     DEPLOY_PATH="/opt/ksm-main-dev"
     NGINX_CONF="nginx.dev.conf"
 elif [ "$ENVIRONMENT" = "prod" ]; then
     DOMAIN="report.ptkiansantang.com"
+    DOMAINS="report.ptkiansantang.com"
     DEPLOY_PATH="/opt/ksm-main-prod"
     NGINX_CONF="nginx.prod.conf"
 else
@@ -121,13 +123,19 @@ if [ "$USE_WEBROOT" = true ]; then
     docker exec "$NGINX_CONTAINER_NAME" mkdir -p /var/www/certbot 2>/dev/null || true
     
     # Use webroot method (nginx must be running and configured)
+    # Build certbot command with all domains
+    CERTBOT_DOMAINS=""
+    for domain in $DOMAINS; do
+        CERTBOT_DOMAINS="$CERTBOT_DOMAINS -d $domain"
+    done
+    
     certbot certonly --webroot \
         --webroot-path="$WEBROOT_PATH" \
         --email "$EMAIL" \
         --agree-tos \
         --no-eff-email \
         --preferred-challenges http \
-        -d "$DOMAIN" || {
+        $CERTBOT_DOMAINS || {
         echo -e "${YELLOW}⚠️  Webroot method gagal, mencoba standalone method...${NC}"
         USE_WEBROOT=false
     }
@@ -173,26 +181,34 @@ if [ "$USE_WEBROOT" = false ]; then
     fi
     
     # Use standalone method
+    # Build certbot command with all domains
+    CERTBOT_DOMAINS=""
+    for domain in $DOMAINS; do
+        CERTBOT_DOMAINS="$CERTBOT_DOMAINS -d $domain"
+    done
+    
     certbot certonly --standalone \
         --email "$EMAIL" \
         --agree-tos \
         --no-eff-email \
         --preferred-challenges http \
         --http-01-port 80 \
-        -d "$DOMAIN" || {
+        $CERTBOT_DOMAINS || {
         echo -e "${RED}❌ ERROR: Gagal generate certificate!${NC}"
         echo ""
         echo "Possible causes:"
-        echo "  1. Domain $DOMAIN belum pointing ke server IP"
+        echo "  1. Domain(s) belum pointing ke server IP: $DOMAINS"
         echo "  2. Port 80 masih digunakan oleh service lain"
         echo "  3. Firewall memblokir port 80"
         echo "  4. Let's Encrypt rate limit (jika baru saja mencoba)"
         echo ""
         echo "Troubleshooting:"
-        echo "  - Cek DNS: nslookup $DOMAIN atau dig $DOMAIN"
+        for domain in $DOMAINS; do
+            echo "  - Cek DNS untuk $domain: nslookup $domain atau dig $domain"
+            echo "  - Test koneksi: curl -I http://$domain"
+        done
         echo "  - Cek port 80: lsof -i :80 atau netstat -tulpn | grep :80"
         echo "  - Cek firewall: ufw status atau iptables -L"
-        echo "  - Test koneksi: curl -I http://$DOMAIN"
         echo ""
         echo -e "${YELLOW}💡 Alternatif: Pastikan nginx container KSM berjalan dan gunakan webroot method${NC}"
         exit 1

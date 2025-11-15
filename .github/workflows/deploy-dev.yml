@@ -597,22 +597,42 @@ jobs:
             # Check SSL certificate
             echo ""
             echo "🔐 Checking SSL certificate..."
-            SSL_DIR="\$DEPLOY_PATH/infrastructure/nginx/ssl"
+            SSL_DIR="\$DEPLOY_PATH/ksm-main/infrastructure/nginx/ssl"
             CERT_FILE="\$SSL_DIR/cert.pem"
             KEY_FILE="\$SSL_DIR/key.pem"
             
+            # Also check alternative path (old structure)
             if [ ! -f "\$CERT_FILE" ] || [ ! -f "\$KEY_FILE" ]; then
-              echo "⚠️  SSL certificate files not found!"
+              ALT_SSL_DIR="\$DEPLOY_PATH/infrastructure/nginx/ssl"
+              ALT_CERT_FILE="\$ALT_SSL_DIR/cert.pem"
+              ALT_KEY_FILE="\$ALT_SSL_DIR/key.pem"
+              
+              if [ -f "\$ALT_CERT_FILE" ] && [ -f "\$ALT_KEY_FILE" ]; then
+                echo "✅ SSL certificate files found in alternative location"
+                echo "   Certificate: \$ALT_CERT_FILE"
+                echo "   Key: \$ALT_KEY_FILE"
+                CERT_FILE="\$ALT_CERT_FILE"
+                KEY_FILE="\$ALT_KEY_FILE"
+              else
+                echo "⚠️  SSL certificate files not found!"
+                echo "   Checked locations:"
+                echo "   - \$CERT_FILE"
+                echo "   - \$KEY_FILE"
+                echo "   - \$ALT_CERT_FILE"
+                echo "   - \$ALT_KEY_FILE"
+                echo ""
+                echo "💡 To fix SSL certificate issue:"
+                echo "   1. SSH to server: ssh \${{ secrets.SSH_USER_DEV }}@\${{ secrets.SSH_HOST_DEV }}"
+                echo "   2. Run: cd \$DEPLOY_PATH && ./scripts/setup-ssl.sh dev your-email@example.com"
+                echo "   3. Or check: ./scripts/check-ssl.sh dev"
+              fi
+            else
+              echo "✅ SSL certificate files found"
               echo "   Certificate: \$CERT_FILE"
               echo "   Key: \$KEY_FILE"
-              echo ""
-              echo "💡 To fix SSL certificate issue:"
-              echo "   1. SSH to server: ssh \${{ secrets.SSH_USER_DEV }}@\${{ secrets.SSH_HOST_DEV }}"
-              echo "   2. Run: cd \$DEPLOY_PATH && ./scripts/setup-ssl.sh dev your-email@example.com"
-              echo "   3. Or check: ./scripts/check-ssl.sh dev"
-            else
-              echo "✅ SSL certificate files exist"
-              
+            fi
+            
+            if [ -f "\$CERT_FILE" ] && [ -f "\$KEY_FILE" ]; then
               # Check certificate validity if openssl is available
               if command -v openssl >/dev/null 2>&1; then
                 CERT_SUBJECT=\$(openssl x509 -in "\$CERT_FILE" -noout -subject 2>/dev/null | sed 's/subject=//' || echo "")
